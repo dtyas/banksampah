@@ -1,0 +1,40 @@
+/.serena
+/.qwen
+
+# OS/editor
+.DS_Store
+.idea
+.vscode
+
+# Env/config
+.env
+.env.*
+!.env.example
+
+# Logs/cache
+*.log
+tmp/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite/Build
+dist/
+
+# Laravel
+backend/bank-sampah-app/vendor/
+backend/bank-sampah-app/storage/*.key
+backend/bank-sampah-app/storage/framework/cache/
+backend/bank-sampah-app/storage/framework/sessions/
+backend/bank-sampah-app/storage/framework/testing/
+backend/bank-sampah-app/storage/framework/views/
+backend/bank-sampah-app/storage/logs/
+backend/bank-sampah-app/bootstrap/cache/
+
+# Coverage
+coverage/
+.phpunit.result.cache

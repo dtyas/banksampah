@@ -1,0 +1,35 @@
+.DS_Store
+.git
+.github
+.idea
+.vscode
+.serena
+.qwen
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs/Cache
+*.log
+tmp
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build outputs
+dist
+coverage
+
+# Laravel runtime
+backend/bank-sampah-app/vendor
+backend/bank-sampah-app/storage/framework/cache
+backend/bank-sampah-app/storage/framework/sessions
+backend/bank-sampah-app/storage/framework/testing
+backend/bank-sampah-app/storage/framework/views
+backend/bank-sampah-app/storage/logs
+backend/bank-sampah-app/bootstrap/cache
