@@ -1191,13 +1191,13 @@ if (saveNasabah) {
 
     const request = editingNasabahRow
       ? apiRequest(`/nasabah/${editingNasabahRow.dataset.nasabahId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        })
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
       : apiRequest("/nasabah", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
     request
       .then((payload) => {
@@ -1263,13 +1263,13 @@ if (saveJenisSampah) {
 
     const request = editingKategoriRow
       ? apiRequest(`/kategori-sampah/${editingKategoriRow.dataset.kategoriId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        })
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
       : apiRequest("/kategori-sampah", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
     request
       .then((payload) => {
@@ -1337,13 +1337,13 @@ if (saveSampah) {
 
     const request = editingSampahRow
       ? apiRequest(`/sampah/${editingSampahRow.dataset.sampahId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        })
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
       : apiRequest("/sampah", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
     request
       .then((payload) => {
