@@ -4,7 +4,7 @@ import App from './App.vue';
 import router from './router';
 import './style.css';
 import '../assets/css/app.css';
-import 'vue-sonner/style.css';
+import 'vue-sonner/dist/style.css';
 import { toast } from 'vue-sonner';
 
 const app = createApp(App);
