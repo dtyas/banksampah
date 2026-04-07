@@ -13,8 +13,8 @@ window.APP_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 app.use(createPinia());
 app.use(Vue3Toastify, {
-	position: 'top-right',
-	closeButton: true,
+    position: 'top-right',
+    closeButton: true,
 });
 app.use(router);
 app.mount('#app');
