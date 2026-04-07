@@ -4,13 +4,12 @@ import App from './App.vue';
 import router from './router';
 import './style.css';
 import '../assets/css/app.css';
-import 'vue-sonner/dist/style.css';
-import { toast } from 'vue-sonner';
+import Vue3Toastify, { type ToastContainerOptions } from 'vue3-toastify';
+import 'vue3-toastify/dist/index.css';
 
 const app = createApp(App);
 
 window.APP_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-window.toast = toast;
 
 app.use(createPinia());
 app.use(router);

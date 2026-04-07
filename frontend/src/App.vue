@@ -1,6 +1,5 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { Toaster } from "vue-sonner";
 import legacyHtml from "../index-legacy.html?raw";
 
 const legacyBody = ref("");
@@ -22,5 +21,4 @@ onMounted(() => {
     class="min-h-screen bg-slate-50 text-slate-800"
     v-html="legacyBody"
   ></div>
-  <Toaster richColors position="top-right" closeButton />
 </template>
