@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { toast } from "vue-sonner";
 import { useAuthStore } from "../../../stores/auth";
 
 const router = useRouter();
@@ -19,13 +18,11 @@ async function submitLogin() {
 
   try {
     await authStore.signIn(form);
-    toast.success("Login berhasil");
     await router.push({ name: "dashboard" });
   } catch (error) {
     const message =
       error?.response?.data?.message || error.message || "Login gagal";
     errorMessage.value = message;
-    toast.error(message);
   }
 }
 </script>

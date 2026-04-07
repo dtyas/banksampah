@@ -1,4 +1,11 @@
-import axios from 'axios';
+import axios, { AxiosError, type AxiosResponse } from 'axios';
+import { toast } from 'vue3-toastify';
+
+type ApiResponse<T = unknown> = {
+    status?: boolean;
+    message?: string;
+    data?: T;
+};
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -17,5 +24,24 @@ api.interceptors.request.use((config) => {
 
     return config;
 });
+
+api.interceptors.response.use(
+    (response: AxiosResponse<ApiResponse>) => {
+        const message = response.data?.message;
+        if (message) {
+            if (response.data?.status === false) {
+                toast.error(message);
+            } else {
+                toast.success(message);
+            }
+        }
+        return response;
+    },
+    (error: AxiosError<ApiResponse>) => {
+        const message = error.response?.data?.message || error.message || 'Request gagal';
+        toast.error(message);
+        return Promise.reject(error);
+    }
+);
 
 export default api;

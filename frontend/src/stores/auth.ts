@@ -1,17 +1,24 @@
 import { defineStore } from 'pinia';
+import type { AuthLoginPayload, AuthUser } from '../api/auth.api';
 import { getMe, login, logout } from '../api/auth.api';
 
+type AuthState = {
+    user: AuthUser | null;
+    token: string | null;
+    loading: boolean;
+};
+
 export const useAuthStore = defineStore('auth', {
-    state: () => ({
+    state: (): AuthState => ({
         user: null,
-        token: localStorage.getItem('banksampah_token') || null,
+        token: localStorage.getItem('banksampah_token'),
         loading: false,
     }),
     getters: {
         isAuthenticated: (state) => Boolean(state.token),
     },
     actions: {
-        async signIn(payload) {
+        async signIn(payload: AuthLoginPayload) {
             this.loading = true;
 
             try {
@@ -23,7 +30,9 @@ export const useAuthStore = defineStore('auth', {
 
                 this.token = response.data.token;
                 this.user = response.data.user;
-                localStorage.setItem('banksampah_token', this.token);
+                if (this.token) {
+                    localStorage.setItem('banksampah_token', this.token);
+                }
             } finally {
                 this.loading = false;
             }
