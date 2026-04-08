@@ -83,11 +83,12 @@ async function loadLaporan() {
       ...(endDate.value ? { end_date: endDate.value } : {}),
     };
 
-    const [summaryResponse, chartResponse, transaksiResponse] = await Promise.all([
-      api.get("/laporan/summary", { params }),
-      api.get("/laporan/chart", { params }),
-      api.get("/laporan/transaksi", { params }),
-    ]);
+    const [summaryResponse, chartResponse, transaksiResponse] =
+      await Promise.all([
+        api.get("/laporan/summary", { params }),
+        api.get("/laporan/chart", { params }),
+        api.get("/laporan/transaksi", { params }),
+      ]);
     summary.value = summaryResponse.data?.data ?? null;
     chart.value = chartResponse.data?.data ?? null;
     transaksiRows.value = transaksiResponse.data?.data ?? [];
@@ -111,7 +112,9 @@ onMounted(loadLaporan);
 
 <template>
   <section class="space-y-6">
-    <div class="no-print rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+    <div
+      class="no-print rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
+    >
       <h3 class="text-lg font-semibold text-slate-900">Filter Laporan</h3>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
         <label class="text-sm text-slate-600">
