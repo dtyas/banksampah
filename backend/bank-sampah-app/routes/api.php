@@ -9,10 +9,12 @@ use App\Http\Controllers\Api\V1\PembayaranController;
 use App\Http\Controllers\Api\V1\SampahController;
 use App\Http\Controllers\Api\V1\TransaksiController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\XenditWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login']);
+    Route::post('webhooks/xendit/disbursement', [XenditWebhookController::class, 'handleDisbursementCallback']);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);

@@ -35,8 +35,8 @@ class PembayaranService
             $actorUserId = $actorUserIdFromPayload !== null
                 ? (int) $actorUserIdFromPayload
                 : ($pembayaran->transaksi?->user_id !== null
-                ? (int) $pembayaran->transaksi->user_id
-                : null);
+                    ? (int) $pembayaran->transaksi->user_id
+                    : null);
 
             $this->auditTrailService->record(
                 action: 'pembayaran.created',
@@ -79,8 +79,8 @@ class PembayaranService
             $actorUserId = $actorUserIdFromPayload !== null
                 ? (int) $actorUserIdFromPayload
                 : ($updated->transaksi?->user_id !== null
-                ? (int) $updated->transaksi->user_id
-                : null);
+                    ? (int) $updated->transaksi->user_id
+                    : null);
 
             $this->auditTrailService->record(
                 action: 'pembayaran.updated',
@@ -137,5 +137,81 @@ class PembayaranService
 
             $this->pembayaranRepository->delete($pembayaran);
         });
+    }
+
+    public function updateStatusFromDisbursementCallback(string $externalId, string $disbursementStatus, array $payload = []): bool
+    {
+        return DB::transaction(function () use ($externalId, $disbursementStatus, $payload): bool {
+            $pembayaranId = $this->extractPembayaranIdFromExternalId($externalId);
+            if ($pembayaranId === null) {
+                return false;
+            }
+
+            $pembayaran = Pembayaran::query()->with('transaksi')->find($pembayaranId);
+            if (! $pembayaran) {
+                return false;
+            }
+
+            $mappedStatus = $this->mapDisbursementStatus($disbursementStatus);
+            if ($mappedStatus === null) {
+                return false;
+            }
+
+            $beforeStatus = $pembayaran->status;
+
+            $pembayaran->status = $mappedStatus;
+            if ($mappedStatus === 'berhasil' && $pembayaran->verified_at === null) {
+                $pembayaran->verified_at = now();
+            }
+            $pembayaran->save();
+
+            $this->auditTrailService->record(
+                action: 'pembayaran.webhook_updated',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: null,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'external_id' => $externalId,
+                    'disbursement_status' => $disbursementStatus,
+                    'before_status' => $beforeStatus,
+                    'after_status' => $mappedStatus,
+                    'payload' => $payload,
+                ],
+            );
+
+            return true;
+        });
+    }
+
+    private function extractPembayaranIdFromExternalId(string $externalId): ?int
+    {
+        $trimmed = trim($externalId);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (ctype_digit($trimmed)) {
+            return (int) $trimmed;
+        }
+
+        if (preg_match('/(\\d+)$/', $trimmed, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
+
+    private function mapDisbursementStatus(string $status): ?string
+    {
+        return match (strtoupper(trim($status))) {
+            'COMPLETED' => 'berhasil',
+            'FAILED', 'CANCELLED' => 'ditolak',
+            'PENDING' => 'diproses',
+            default => null,
+        };
     }
 }
