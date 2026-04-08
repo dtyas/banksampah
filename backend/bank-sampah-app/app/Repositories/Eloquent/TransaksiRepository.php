@@ -6,7 +6,6 @@ use App\Models\DetailTransaksi;
 use App\Models\Transaksi;
 use App\Repositories\Contracts\TransaksiRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 
 class TransaksiRepository implements TransaksiRepositoryInterface
 {
@@ -27,60 +26,56 @@ class TransaksiRepository implements TransaksiRepositoryInterface
 
     public function createWithItems(array $data): Transaksi
     {
-        return DB::transaction(function () use ($data): Transaksi {
-            $items = $data['items'];
-            $totalBerat = collect($items)->sum('berat');
-            $totalHarga = collect($items)->sum('subtotal');
+        $items = $data['items'];
+        $totalBerat = collect($items)->sum('berat');
+        $totalHarga = collect($items)->sum('subtotal');
 
-            $transaksi = Transaksi::query()->create([
-                'user_id' => $data['user_id'],
-                'nasabah_id' => $data['nasabah_id'],
-                'tanggal' => $data['tanggal'],
-                'total_berat' => $totalBerat,
-                'total_harga' => $totalHarga,
+        $transaksi = Transaksi::query()->create([
+            'user_id' => $data['user_id'],
+            'nasabah_id' => $data['nasabah_id'],
+            'tanggal' => $data['tanggal'],
+            'total_berat' => $totalBerat,
+            'total_harga' => $totalHarga,
+        ]);
+
+        foreach ($items as $item) {
+            DetailTransaksi::query()->create([
+                'transaksi_id' => $transaksi->id,
+                'sampah_id' => $item['sampah_id'],
+                'berat' => $item['berat'],
+                'subtotal' => $item['subtotal'],
             ]);
+        }
 
-            foreach ($items as $item) {
-                DetailTransaksi::query()->create([
-                    'transaksi_id' => $transaksi->id,
-                    'sampah_id' => $item['sampah_id'],
-                    'berat' => $item['berat'],
-                    'subtotal' => $item['subtotal'],
-                ]);
-            }
-
-            return $this->findWithRelationsOrFail((int) $transaksi->id);
-        });
+        return $this->findWithRelationsOrFail((int) $transaksi->id);
     }
 
     public function updateWithItems(Transaksi $transaksi, array $data): Transaksi
     {
-        return DB::transaction(function () use ($transaksi, $data): Transaksi {
-            $items = $data['items'];
-            $totalBerat = collect($items)->sum('berat');
-            $totalHarga = collect($items)->sum('subtotal');
+        $items = $data['items'];
+        $totalBerat = collect($items)->sum('berat');
+        $totalHarga = collect($items)->sum('subtotal');
 
-            $transaksi->update([
-                'user_id' => $data['user_id'],
-                'nasabah_id' => $data['nasabah_id'],
-                'tanggal' => $data['tanggal'],
-                'total_berat' => $totalBerat,
-                'total_harga' => $totalHarga,
+        $transaksi->update([
+            'user_id' => $data['user_id'],
+            'nasabah_id' => $data['nasabah_id'],
+            'tanggal' => $data['tanggal'],
+            'total_berat' => $totalBerat,
+            'total_harga' => $totalHarga,
+        ]);
+
+        $transaksi->detailTransaksi()->delete();
+
+        foreach ($items as $item) {
+            DetailTransaksi::query()->create([
+                'transaksi_id' => $transaksi->id,
+                'sampah_id' => $item['sampah_id'],
+                'berat' => $item['berat'],
+                'subtotal' => $item['subtotal'],
             ]);
+        }
 
-            $transaksi->detailTransaksi()->delete();
-
-            foreach ($items as $item) {
-                DetailTransaksi::query()->create([
-                    'transaksi_id' => $transaksi->id,
-                    'sampah_id' => $item['sampah_id'],
-                    'berat' => $item['berat'],
-                    'subtotal' => $item['subtotal'],
-                ]);
-            }
-
-            return $this->findWithRelationsOrFail((int) $transaksi->id);
-        });
+        return $this->findWithRelationsOrFail((int) $transaksi->id);
     }
 
     public function delete(Transaksi $transaksi): void

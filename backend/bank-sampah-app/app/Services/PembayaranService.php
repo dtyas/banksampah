@@ -5,10 +5,14 @@ namespace App\Services;
 use App\Models\Pembayaran;
 use App\Repositories\Contracts\PembayaranRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class PembayaranService
 {
-    public function __construct(private readonly PembayaranRepositoryInterface $pembayaranRepository) {}
+    public function __construct(
+        private readonly PembayaranRepositoryInterface $pembayaranRepository,
+        private readonly AuditTrailService $auditTrailService,
+    ) {}
 
     public function all(): Collection
     {
@@ -22,22 +26,97 @@ class PembayaranService
 
     public function create(array $data): Pembayaran
     {
-        $pembayaran = $this->pembayaranRepository->create($data)->load('transaksi');
+        return DB::transaction(function () use ($data): Pembayaran {
+            $pembayaran = $this->pembayaranRepository->create($data)->load('transaksi');
 
-        return $pembayaran;
+            $actorUserId = $pembayaran->transaksi?->user_id !== null
+                ? (int) $pembayaran->transaksi->user_id
+                : null;
+
+            $this->auditTrailService->record(
+                action: 'pembayaran.created',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'tanggal' => $pembayaran->tanggal,
+                ],
+            );
+
+            return $pembayaran;
+        });
     }
 
     public function update(int $id, array $data): Pembayaran
     {
-        $pembayaran = $this->findOrFail($id);
-        $updated = $this->pembayaranRepository->update($pembayaran, $data)->load('transaksi');
+        return DB::transaction(function () use ($id, $data): Pembayaran {
+            $pembayaran = $this->findOrFail($id);
+            $beforeStatus = $pembayaran->status;
+            $beforeJumlah = (float) $pembayaran->jumlah;
 
-        return $updated;
+            $updated = $this->pembayaranRepository->update($pembayaran, $data)->load('transaksi');
+
+            $actorUserId = $updated->transaksi?->user_id !== null
+                ? (int) $updated->transaksi->user_id
+                : null;
+
+            $this->auditTrailService->record(
+                action: 'pembayaran.updated',
+                entityType: 'pembayaran',
+                entityId: (int) $updated->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $updated->transaksi_id,
+                amount: (float) $updated->jumlah,
+                meta: [
+                    'before' => [
+                        'status' => $beforeStatus,
+                        'jumlah' => $beforeJumlah,
+                    ],
+                    'after' => [
+                        'status' => $updated->status,
+                        'jumlah' => (float) $updated->jumlah,
+                    ],
+                    'metode' => $updated->metode,
+                    'tanggal' => $updated->tanggal,
+                ],
+            );
+
+            return $updated;
+        });
     }
 
     public function delete(int $id): void
     {
-        $pembayaran = $this->findOrFail($id);
-        $this->pembayaranRepository->delete($pembayaran);
+        DB::transaction(function () use ($id): void {
+            $pembayaran = $this->findOrFail($id);
+            $pembayaran->loadMissing('transaksi');
+
+            $actorUserId = $pembayaran->transaksi?->user_id !== null
+                ? (int) $pembayaran->transaksi->user_id
+                : null;
+
+            $this->auditTrailService->record(
+                action: 'pembayaran.deleted',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'tanggal' => $pembayaran->tanggal,
+                ],
+            );
+
+            $this->pembayaranRepository->delete($pembayaran);
+        });
     }
 }
