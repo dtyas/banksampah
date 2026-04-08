@@ -10,9 +10,20 @@ use Illuminate\Validation\Rule;
 
 class UserController extends ApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $users = User::query()->latest()->get();
+        $users = User::query()
+            ->when($request->filled('role'), fn($query) => $query->where('role', $request->string('role')))
+            ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('q'), function ($query) use ($request): void {
+                $keyword = $request->string('q');
+                $query->where(function ($subQuery) use ($keyword): void {
+                    $subQuery->where('nama', 'like', '%' . $keyword . '%')
+                        ->orWhere('email', 'like', '%' . $keyword . '%');
+                });
+            })
+            ->latest()
+            ->get();
 
         return $this->successResponse('Data user berhasil diambil', UserResource::collection($users));
     }

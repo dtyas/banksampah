@@ -15,6 +15,15 @@ class NasabahResource extends JsonResource
             'nama' => $this->nama,
             'alamat' => $this->alamat,
             'no_hp' => $this->no_hp,
+            'user' => $this->whenLoaded('user', function (): array {
+                return [
+                    'id' => $this->user?->id,
+                    'nama' => $this->user?->nama,
+                    'email' => $this->user?->email,
+                    'role' => $this->user?->role,
+                    'status' => $this->user?->status,
+                ];
+            }),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

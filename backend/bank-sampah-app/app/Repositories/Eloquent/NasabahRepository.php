@@ -10,12 +10,19 @@ class NasabahRepository implements NasabahRepositoryInterface
 {
     public function all(): Collection
     {
-        return Nasabah::query()->latest()->get();
+        return Nasabah::query()
+            ->with('user')
+            ->whereHas('user', fn($query) => $query->where('role', 'nasabah'))
+            ->latest()
+            ->get();
     }
 
     public function findOrFail(int $id): Nasabah
     {
-        return Nasabah::query()->findOrFail($id);
+        return Nasabah::query()
+            ->with('user')
+            ->whereHas('user', fn($query) => $query->where('role', 'nasabah'))
+            ->findOrFail($id);
     }
 
     public function create(array $data): Nasabah
