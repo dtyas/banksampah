@@ -1,19 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import LoginView from '../features/auth/views/LoginView.vue';
-import DashboardView from '../features/dashboard/views/DashboardView.vue';
+import LoginPage from '../features/legacy/LoginPage.vue';
+import AdminShell from '../features/legacy/AdminShell.vue';
 
 const routes = [
     {
         path: '/login',
         name: 'login',
-        component: LoginView,
+        component: LoginPage,
         meta: { guest: true },
     },
     {
         path: '/',
         name: 'dashboard',
-        component: DashboardView,
+        component: AdminShell,
         meta: { requiresAuth: true },
     },
 ];

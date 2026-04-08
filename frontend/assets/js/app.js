@@ -158,7 +158,7 @@ const filterUserRole = document.getElementById("filterUserRole");
 const filterUserStatus = document.getElementById("filterUserStatus");
 const searchUserButton = document.getElementById("searchUserButton");
 const clearUserFilter = document.getElementById("clearUserFilter");
-const userRows = document.querySelectorAll(".user-row");
+const userTableBody = document.querySelector("#userPage table tbody");
 const userEmptyState = document.getElementById("userEmptyState");
 const withdrawMethod = document.getElementById("withdrawMethod");
 const nasabahEwalletFields = document.getElementById("nasabahEwalletFields");
@@ -178,7 +178,6 @@ const userCustomAccessSection = document.getElementById("userCustomAccessSection
 const checkAllOperationalAccess = document.getElementById("checkAllOperationalAccess");
 const uncheckAllOperationalAccess = document.getElementById("uncheckAllOperationalAccess");
 const userOperationalAccessSection = document.getElementById("userOperationalAccessSection");
-const userEditButtons = document.querySelectorAll(".user-edit-button");
 let currentProfilePhoto = "";
 let pendingProfilePhoto = "";
 let activePaymentTab = "all";
@@ -190,10 +189,39 @@ let cachedNasabah = [];
 let cachedKategori = [];
 let cachedSampah = [];
 let cachedTransaksi = [];
+let cachedUsers = [];
 let currentUserId = null;
+let transactionChartInstance = null;
 
 const API_BASE_URL = window.APP_API_BASE_URL || "http://localhost:8000/api/v1";
 const TOKEN_KEY = "banksampah_token";
+
+function clearStaticPlaceholders() {
+  if (nasabahTableBody) nasabahTableBody.innerHTML = "";
+  if (kategoriTableBody) kategoriTableBody.innerHTML = "";
+  if (sampahTableBody) sampahTableBody.innerHTML = "";
+  if (transaksiTableBody) transaksiTableBody.innerHTML = "";
+  if (paymentTableBody) paymentTableBody.innerHTML = "";
+
+  if (nasabahTransaksiResults) nasabahTransaksiResults.innerHTML = "";
+  if (nasabahSearchResults) nasabahSearchResults.innerHTML = "";
+
+  if (idTransaksiPembayaran) {
+    idTransaksiPembayaran.innerHTML = '<option value="">Cari Transaksi</option>';
+  }
+
+  document.querySelectorAll(".transaction-sampah-results").forEach((results) => {
+    if (results instanceof HTMLElement) {
+      results.innerHTML = "";
+    }
+  });
+
+  if (transaksiWrapper) {
+    transaksiWrapper.querySelectorAll(".transaction-detail").forEach((detail) => {
+      detail.remove();
+    });
+  }
+}
 
 function getAuthToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -761,6 +789,161 @@ async function loadNasabahList() {
   }
 }
 
+function getCheckedValues(section) {
+  if (!section) return [];
+  return Array.from(section.querySelectorAll('input[type="checkbox"]:checked')).map((input) => {
+    const wrapper = input.closest("label");
+    return wrapper ? wrapper.textContent.replace(/\s+/g, " ").trim() : "";
+  }).filter(Boolean);
+}
+
+function roleToApi(value) {
+  if (value === "Super Admin" || value === "super_admin") return "super_admin";
+  if (value === "Petugas" || value === "petugas") return "petugas";
+  return "nasabah";
+}
+
+function roleToDisplay(value) {
+  if (value === "super_admin") return "Super Admin";
+  if (value === "petugas") return "Petugas";
+  if (value === "nasabah") return "Nasabah";
+  return value || "Petugas";
+}
+
+function renderUserRows(items) {
+  if (!userTableBody) return;
+  userTableBody.innerHTML = "";
+
+  if (!items.length) {
+    if (userEmptyState) userEmptyState.classList.remove("hidden");
+    return;
+  }
+
+  if (userEmptyState) userEmptyState.classList.add("hidden");
+
+  items.forEach((item, index) => {
+    const row = document.createElement("tr");
+    row.className = "user-row border-t border-slate-200 text-slate-700";
+    row.dataset.userId = item.id;
+    row.dataset.userName = item.nama || "";
+    row.dataset.userEmail = item.email || "";
+    row.dataset.userRole = item.role || "";
+    row.dataset.userStatus = item.status || "Aktif";
+    row.dataset.menuAccess = JSON.stringify(item.menu_access || []);
+    row.dataset.operationalAccess = JSON.stringify(item.operational_access || []);
+    row.innerHTML = `
+      <td class="px-5 py-4">${index + 1}</td>
+      <td class="px-5 py-4">${item.nama || "-"}</td>
+      <td class="px-5 py-4">${item.email || "-"}</td>
+      <td class="px-5 py-4">${roleToDisplay(item.role)}</td>
+      <td class="px-5 py-4">${item.status || "Aktif"}</td>
+      <td class="px-5 py-4">${item.created_at ? new Date(item.created_at).toLocaleString("id-ID") : "-"}</td>
+      <td class="px-5 py-4">
+        <div class="flex gap-2">
+          <button type="button" class="user-edit-button rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-slate-900">Edit</button>
+          <button type="button" class="user-delete-button rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white">Hapus</button>
+        </div>
+      </td>
+    `;
+    userTableBody.appendChild(row);
+  });
+}
+
+async function loadUsersList() {
+  try {
+    const payload = await apiRequest("/users");
+    cachedUsers = normalizeCollection(payload);
+    renderUserRows(cachedUsers);
+    filterUsers();
+  } catch (error) {
+    if (userTableBody) {
+      userTableBody.innerHTML =
+        '<tr class="text-rose-600"><td colspan="7" class="px-5 py-4 text-center">Gagal memuat data user.</td></tr>';
+    }
+    notify("error", error?.message || "Gagal memuat data user.");
+  }
+}
+
+async function loadLaporanSummary() {
+  try {
+    const payload = await apiRequest("/laporan/summary");
+    const summary = payload?.data || {};
+    const statCards = document.querySelectorAll("#dashboardPage article h3");
+    if (statCards[0]) statCards[0].textContent = String(summary.total_nasabah ?? "-");
+    if (statCards[1]) statCards[1].textContent = `${Number(summary.total_berat || 0).toLocaleString("id-ID")} Kg`;
+    if (statCards[2]) statCards[2].textContent = `Rp ${Number(summary.total_harga || 0).toLocaleString("id-ID")}`;
+    if (statCards[3]) statCards[3].textContent = String(summary.total_transaksi ?? "-");
+  } catch (error) {
+    // Keep placeholder data on failure.
+  }
+}
+
+async function loadTransactionChart() {
+  const canvas = document.getElementById("transactionChart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  try {
+    const payload = await apiRequest("/laporan/chart");
+    const labels = payload?.data?.labels || [];
+    const transaksiData = payload?.data?.datasets?.find((dataset) => dataset.key === "total_transaksi")?.data || [];
+
+    if (transactionChartInstance) {
+      transactionChartInstance.destroy();
+    }
+
+    transactionChartInstance = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Transaksi",
+            data: transaksiData,
+            borderColor: "#0ea5e9",
+            backgroundColor: "rgba(14, 165, 233, 0.16)",
+            fill: true,
+            tension: 0.38,
+            borderWidth: 4,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#ffffff",
+            pointBorderColor: "#0ea5e9",
+            pointBorderWidth: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#0f172a",
+            titleColor: "#ffffff",
+            bodyColor: "#e2e8f0",
+            padding: 12,
+            displayColors: false,
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: "#64748b" },
+          },
+          y: {
+            beginAtZero: true,
+            border: { display: false },
+            ticks: { color: "#64748b" },
+            grid: { color: "rgba(148, 163, 184, 0.15)" },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    // Keep chart placeholders when backend chart data is not ready.
+  }
+}
+
 function resetUserFormState() {
   editingUserRow = null;
   if (userFormBreadcrumb) userFormBreadcrumb.innerHTML = "User &rsaquo; Create";
@@ -770,6 +953,8 @@ function resetUserFormState() {
   if (newUserPassword) newUserPassword.value = "";
   if (newUserRole) newUserRole.value = "Super Admin";
   if (newUserStatus) newUserStatus.value = "Aktif";
+  toggleAllUserAccess(false);
+  toggleOperationalAccess(false);
 }
 
 function resetNasabahFormState() {
@@ -860,8 +1045,31 @@ function openEditUserForm(row) {
   if (newUserName) newUserName.value = row.dataset.userName || "";
   if (newUserEmail) newUserEmail.value = row.dataset.userEmail || "";
   if (newUserPassword) newUserPassword.value = "";
-  if (newUserRole) newUserRole.value = row.dataset.userRole || "Petugas";
+  if (newUserRole) newUserRole.value = roleToDisplay(row.dataset.userRole) || "Petugas";
   if (newUserStatus) newUserStatus.value = row.dataset.userStatus || "Aktif";
+
+  const menuAccess = JSON.parse(row.dataset.menuAccess || "[]");
+  const operationalAccess = JSON.parse(row.dataset.operationalAccess || "[]");
+
+  toggleAllUserAccess(false);
+  toggleOperationalAccess(false);
+
+  if (userCustomAccessSection) {
+    userCustomAccessSection.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      const wrapper = input.closest("label");
+      const label = wrapper ? wrapper.textContent.replace(/\s+/g, " ").trim() : "";
+      input.checked = menuAccess.includes(label);
+    });
+  }
+
+  if (userOperationalAccessSection) {
+    userOperationalAccessSection.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      const wrapper = input.closest("label");
+      const label = wrapper ? wrapper.textContent.replace(/\s+/g, " ").trim() : "";
+      input.checked = operationalAccess.includes(label);
+    });
+  }
+
   setActivePage("userForm");
 }
 
@@ -1008,6 +1216,16 @@ function setActivePage(page) {
   }
   if (page === "pembayaran") {
     loadPembayaranList();
+  }
+  if (page === "user") {
+    loadUsersList();
+  }
+  if (page === "dashboard") {
+    loadLaporanSummary();
+    loadTransactionChart();
+  }
+  if (page === "laporan") {
+    loadLaporanSummary();
   }
 }
 
@@ -1722,7 +1940,9 @@ function filterUsers() {
   const statusValue = filterUserStatus ? filterUserStatus.value : "";
   let visibleRows = 0;
 
-  userRows.forEach((row) => {
+  const rows = userTableBody ? userTableBody.querySelectorAll(".user-row") : [];
+
+  rows.forEach((row) => {
     const matchName = !nameValue || row.dataset.userName.toLowerCase().includes(nameValue);
     const matchEmail = !emailValue || row.dataset.userEmail.toLowerCase().includes(emailValue);
     const matchRole = !roleValue || row.dataset.userRole === roleValue;
@@ -1852,12 +2072,34 @@ if (uncheckAllOperationalAccess) {
   });
 }
 
-userEditButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const row = button.closest(".user-row");
-    openEditUserForm(row);
+if (userTableBody) {
+  userTableBody.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const editButton = target.closest(".user-edit-button");
+    if (editButton) {
+      const row = editButton.closest(".user-row");
+      openEditUserForm(row);
+      return;
+    }
+
+    const deleteButton = target.closest(".user-delete-button");
+    if (!deleteButton) return;
+    const row = deleteButton.closest(".user-row");
+    const userId = row?.dataset.userId;
+    if (!userId) return;
+
+    apiRequest(`/users/${userId}`, { method: "DELETE" })
+      .then((response) => {
+        notify("success", response?.message || "User berhasil dihapus.");
+        loadUsersList();
+      })
+      .catch((error) => {
+        notify("error", error?.message || "Gagal menghapus user.");
+      });
   });
-});
+}
 
 if (backToUserList) {
   backToUserList.addEventListener("click", () => {
@@ -1868,27 +2110,54 @@ if (backToUserList) {
 
 if (saveUserButton) {
   saveUserButton.addEventListener("click", () => {
-    if (editingUserRow) {
-      const nextName = newUserName ? newUserName.value.trim() || editingUserRow.dataset.userName : editingUserRow.dataset.userName;
-      const nextEmail = newUserEmail ? newUserEmail.value.trim() || editingUserRow.dataset.userEmail : editingUserRow.dataset.userEmail;
-      const nextRole = newUserRole ? newUserRole.value : editingUserRow.dataset.userRole;
-      const nextStatus = newUserStatus ? newUserStatus.value : editingUserRow.dataset.userStatus;
-      const cells = editingUserRow.querySelectorAll("td");
+    const nama = newUserName ? newUserName.value.trim() : "";
+    const email = newUserEmail ? newUserEmail.value.trim() : "";
+    const password = newUserPassword ? newUserPassword.value.trim() : "";
+    const role = roleToApi(newUserRole ? newUserRole.value : "petugas");
+    const status = newUserStatus ? newUserStatus.value : "Aktif";
+    const menuAccess = getCheckedValues(userCustomAccessSection);
+    const operationalAccess = getCheckedValues(userOperationalAccessSection);
 
-      editingUserRow.dataset.userName = nextName;
-      editingUserRow.dataset.userEmail = nextEmail;
-      editingUserRow.dataset.userRole = nextRole;
-      editingUserRow.dataset.userStatus = nextStatus;
-
-      if (cells[1]) cells[1].textContent = nextName;
-      if (cells[2]) cells[2].textContent = nextEmail;
-      if (cells[3]) cells[3].textContent = nextRole;
-      if (cells[4]) cells[4].textContent = nextStatus;
-      filterUsers();
+    if (!nama || !email) {
+      notify("warning", "Nama dan email wajib diisi.");
+      return;
     }
 
-    resetUserFormState();
-    setActivePage("user");
+    const payload = {
+      nama,
+      email,
+      role,
+      status,
+      menu_access: menuAccess,
+      operational_access: operationalAccess,
+    };
+
+    if (password) {
+      payload.password = password;
+    }
+
+    if (!editingUserRow && !password) {
+      notify("warning", "Password wajib diisi untuk user baru.");
+      return;
+    }
+
+    const userId = editingUserRow?.dataset.userId;
+    const endpoint = userId ? `/users/${userId}` : "/users";
+    const method = userId ? "PUT" : "POST";
+
+    apiRequest(endpoint, {
+      method,
+      body: JSON.stringify(payload),
+    })
+      .then((response) => {
+        notify("success", response?.message || "Data user berhasil disimpan.");
+        resetUserFormState();
+        setActivePage("user");
+        loadUsersList();
+      })
+      .catch((error) => {
+        notify("error", error?.message || "Gagal menyimpan data user.");
+      });
   });
 }
 
@@ -2001,6 +2270,7 @@ if (resetTransactionFilter) {
 }
 
 bindRemoveTransactionItems();
+clearStaticPlaceholders();
 renderProfileAvatar(profileAvatar, "Admin Utama", currentProfilePhoto);
 renderProfileAvatar(profilePreview, "Admin Utama", currentProfilePhoto);
 
@@ -2011,66 +2281,3 @@ if (getAuthToken()) {
 } else {
   showLoginPage();
 }
-
-const ctx = document.getElementById("transactionChart");
-
-new Chart(ctx, {
-  type: "line",
-  data: {
-    labels: ["Minggu 1", "Minggu 2", "Minggu 3", "Minggu 4"],
-    datasets: [
-      {
-        label: "Transaksi",
-        data: [120, 190, 170, 230],
-        borderColor: "#0ea5e9",
-        backgroundColor: "rgba(14, 165, 233, 0.16)",
-        fill: true,
-        tension: 0.38,
-        borderWidth: 4,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: "#ffffff",
-        pointBorderColor: "#0ea5e9",
-        pointBorderWidth: 3,
-      },
-    ],
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        backgroundColor: "#0f172a",
-        titleColor: "#ffffff",
-        bodyColor: "#e2e8f0",
-        padding: 12,
-        displayColors: false,
-      },
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          color: "#64748b",
-        },
-      },
-      y: {
-        beginAtZero: true,
-        border: {
-          display: false,
-        },
-        ticks: {
-          color: "#64748b",
-        },
-        grid: {
-          color: "rgba(148, 163, 184, 0.15)",
-        },
-      },
-    },
-  },
-});
