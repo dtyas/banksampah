@@ -3,7 +3,9 @@
     class="w-full border-b border-slate-200 bg-white lg:min-h-screen lg:w-[300px] lg:border-b-0 lg:border-r"
   >
     <div class="px-6 py-7">
-      <h1 class="text-2xl font-bold uppercase tracking-[0.28em] text-emerald-500">
+      <h1
+        class="text-2xl font-bold uppercase tracking-[0.28em] text-emerald-500"
+      >
         Bank Sampah
       </h1>
       <p class="mt-2 text-lg font-semibold text-slate-900">Admin Dashboard</p>
