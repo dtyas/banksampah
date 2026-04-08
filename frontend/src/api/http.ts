@@ -7,6 +7,17 @@ type ApiResponse<T = unknown> = {
     data?: T;
 };
 
+function shouldShowToast(method?: string, url?: string): boolean {
+    const normalizedMethod = (method ?? '').toLowerCase();
+    const normalizedUrl = (url ?? '').toLowerCase();
+
+    if (['post', 'put', 'patch', 'delete'].includes(normalizedMethod)) {
+        return true;
+    }
+
+    return normalizedUrl.includes('/auth/login') || normalizedUrl.includes('/auth/logout');
+}
+
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
     withCredentials: import.meta.env.VITE_USE_COOKIE_AUTH === 'true',
@@ -28,7 +39,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response: AxiosResponse<ApiResponse>) => {
         const message = response.data?.message;
-        if (message) {
+        if (message && shouldShowToast(response.config.method, response.config.url)) {
             if (response.data?.status === false) {
                 toast.error(message);
             } else {
@@ -38,8 +49,10 @@ api.interceptors.response.use(
         return response;
     },
     (error: AxiosError<ApiResponse>) => {
-        const message = error.response?.data?.message || error.message || 'Request gagal';
-        toast.error(message);
+        if (shouldShowToast(error.config?.method, error.config?.url)) {
+            const message = error.response?.data?.message || error.message || 'Request gagal';
+            toast.error(message);
+        }
         return Promise.reject(error);
     }
 );

@@ -12,6 +12,27 @@ type UserRow = {
   operational_access?: string[];
 };
 
+const MENU_OPTIONS = [
+  "Dashboard",
+  "Nasabah",
+  "Kategori Sampah",
+  "Sampah",
+  "Transaksi",
+  "Pembayaran",
+  "Pencairan Saldo",
+  "User",
+  "Laporan",
+];
+
+const OPERATIONAL_OPTIONS = [
+  "Tambah Data",
+  "Ubah Data",
+  "Hapus Data",
+  "Verifikasi Pembayaran",
+  "Ajukan Pencairan Saldo",
+  "Approve Pencairan Saldo",
+];
+
 const rows = ref<UserRow[]>([]);
 const editingId = ref<number | null>(null);
 const form = reactive({
@@ -20,8 +41,8 @@ const form = reactive({
   password: "",
   role: "petugas",
   status: "Aktif",
-  menu_access: "",
-  operational_access: "",
+  menu_access: [] as string[],
+  operational_access: [] as string[],
 });
 
 async function loadUsers() {
@@ -36,8 +57,8 @@ function startEdit(user: UserRow) {
   form.password = "";
   form.role = user.role;
   form.status = user.status || "Aktif";
-  form.menu_access = (user.menu_access || []).join(", ");
-  form.operational_access = (user.operational_access || []).join(", ");
+  form.menu_access = [...(user.menu_access || [])];
+  form.operational_access = [...(user.operational_access || [])];
 }
 
 function resetForm() {
@@ -47,8 +68,16 @@ function resetForm() {
   form.password = "";
   form.role = "petugas";
   form.status = "Aktif";
-  form.menu_access = "";
-  form.operational_access = "";
+  form.menu_access = [];
+  form.operational_access = [];
+}
+
+function toggleAllMenuAccess(checked: boolean) {
+  form.menu_access = checked ? [...MENU_OPTIONS] : [];
+}
+
+function toggleAllOperationalAccess(checked: boolean) {
+  form.operational_access = checked ? [...OPERATIONAL_OPTIONS] : [];
 }
 
 async function save() {
@@ -57,14 +86,8 @@ async function save() {
     email: form.email,
     role: form.role,
     status: form.status,
-    menu_access: form.menu_access
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
-    operational_access: form.operational_access
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
+    menu_access: form.menu_access,
+    operational_access: form.operational_access,
   };
 
   if (form.password) payload.password = form.password;
@@ -124,17 +147,77 @@ onMounted(loadUsers);
           <option value="Aktif">Aktif</option>
           <option value="Inactive">Inactive</option>
         </select>
-        <input
-          v-model="form.menu_access"
-          placeholder="Menu access (pisah koma)"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
       </div>
-      <input
-        v-model="form.operational_access"
-        placeholder="Operational access (pisah koma)"
-        class="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3"
-      />
+
+      <div class="mt-5 rounded-2xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between">
+          <h4 class="font-semibold text-slate-900">Menu Access</h4>
+          <div class="flex gap-2 text-xs">
+            <button
+              class="rounded-lg bg-emerald-100 px-2 py-1 text-emerald-700"
+              @click="toggleAllMenuAccess(true)"
+            >
+              Check all
+            </button>
+            <button
+              class="rounded-lg bg-slate-100 px-2 py-1 text-slate-700"
+              @click="toggleAllMenuAccess(false)"
+            >
+              Uncheck all
+            </button>
+          </div>
+        </div>
+        <div class="mt-3 grid gap-2 md:grid-cols-3">
+          <label
+            v-for="menu in MENU_OPTIONS"
+            :key="menu"
+            class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          >
+            <input
+              v-model="form.menu_access"
+              type="checkbox"
+              :value="menu"
+              class="h-4 w-4 rounded border-slate-300"
+            />
+            <span>{{ menu }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between">
+          <h4 class="font-semibold text-slate-900">Operational Access</h4>
+          <div class="flex gap-2 text-xs">
+            <button
+              class="rounded-lg bg-emerald-100 px-2 py-1 text-emerald-700"
+              @click="toggleAllOperationalAccess(true)"
+            >
+              Check all
+            </button>
+            <button
+              class="rounded-lg bg-slate-100 px-2 py-1 text-slate-700"
+              @click="toggleAllOperationalAccess(false)"
+            >
+              Uncheck all
+            </button>
+          </div>
+        </div>
+        <div class="mt-3 grid gap-2 md:grid-cols-2">
+          <label
+            v-for="access in OPERATIONAL_OPTIONS"
+            :key="access"
+            class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          >
+            <input
+              v-model="form.operational_access"
+              type="checkbox"
+              :value="access"
+              class="h-4 w-4 rounded border-slate-300"
+            />
+            <span>{{ access }}</span>
+          </label>
+        </div>
+      </div>
       <div class="mt-4 flex gap-3">
         <button
           class="rounded-xl bg-emerald-600 px-5 py-3 text-white"
@@ -188,6 +271,16 @@ onMounted(loadUsers);
                 >
                   Hapus
                 </button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="rows.length === 0" class="border-t border-slate-200">
+            <td colspan="5" class="px-5 py-4">
+              <div
+                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                role="alert"
+              >
+                Belum ada data user.
               </div>
             </td>
           </tr>

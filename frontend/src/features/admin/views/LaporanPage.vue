@@ -84,6 +84,19 @@ onMounted(loadLaporan);
                 {{ chart?.datasets?.[1]?.data?.[idx] ?? 0 }}
               </td>
             </tr>
+            <tr
+              v-if="(chart?.labels?.length ?? 0) === 0"
+              class="border-t border-slate-200"
+            >
+              <td colspan="3" class="px-4 py-3">
+                <div
+                  class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                  role="alert"
+                >
+                  Belum ada data laporan.
+                </div>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>

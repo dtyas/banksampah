@@ -157,6 +157,16 @@ onMounted(loadNasabah);
               </div>
             </td>
           </tr>
+          <tr v-if="rows.length === 0" class="border-t border-slate-200">
+            <td colspan="4" class="px-5 py-4">
+              <div
+                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                role="alert"
+              >
+                Belum ada data nasabah.
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

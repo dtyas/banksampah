@@ -5,6 +5,9 @@ export type AuthUser = {
     nama: string;
     email: string;
     role: string;
+    status?: string;
+    menu_access?: string[];
+    operational_access?: string[];
 };
 
 export type AuthLoginPayload = {
