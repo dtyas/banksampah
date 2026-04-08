@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\V1\NasabahResource;
 use App\Models\User;
+use App\Services\AccessControlService;
 use App\Services\NasabahService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,10 @@ use Illuminate\Validation\Rule;
 
 class NasabahController extends ApiController
 {
-    public function __construct(private readonly NasabahService $nasabahService) {}
+    public function __construct(
+        private readonly NasabahService $nasabahService,
+        private readonly AccessControlService $accessControlService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -32,12 +36,15 @@ class NasabahController extends ApiController
             'password' => 'nullable|string|min:8',
             'status' => 'nullable|in:Aktif,Inactive',
             'menu_access' => 'nullable|array',
-            'menu_access.*' => 'string|max:255',
+            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
             'operational_access' => 'nullable|array',
-            'operational_access.*' => 'string|max:255',
+            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
         ]);
 
-        $nasabah = DB::transaction(function () use ($validated) {
+        $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? ['Pencairan Saldo']);
+        $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? ['Ajukan Pencairan Saldo']);
+
+        $nasabah = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess) {
             $generatedEmail = Str::slug($validated['nama'], '.') . '.' . now()->timestamp . '@nasabah.local';
             $user = User::query()->create([
                 'nama' => $validated['nama'],
@@ -45,9 +52,11 @@ class NasabahController extends ApiController
                 'password' => $validated['password'] ?? 'Nasabah123!',
                 'role' => 'nasabah',
                 'status' => $validated['status'] ?? 'Aktif',
-                'menu_access' => $validated['menu_access'] ?? ['Pencairan Saldo'],
-                'operational_access' => $validated['operational_access'] ?? ['Ajukan Pencairan Saldo'],
+                'menu_access' => $menuAccess,
+                'operational_access' => $operationalAccess,
             ]);
+
+            $this->accessControlService->syncUserAccess($user, $menuAccess, $operationalAccess);
 
             return $this->nasabahService->create([
                 'user_id' => $user->id,
@@ -82,9 +91,9 @@ class NasabahController extends ApiController
             'password' => 'nullable|string|min:8',
             'status' => 'nullable|in:Aktif,Inactive',
             'menu_access' => 'nullable|array',
-            'menu_access.*' => 'string|max:255',
+            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
             'operational_access' => 'nullable|array',
-            'operational_access.*' => 'string|max:255',
+            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
         ]);
 
         $nasabah = DB::transaction(function () use ($id, $validated) {
@@ -106,13 +115,14 @@ class NasabahController extends ApiController
                     $userData['status'] = $validated['status'];
                 }
                 if (array_key_exists('menu_access', $validated)) {
-                    $userData['menu_access'] = $validated['menu_access'];
+                    $userData['menu_access'] = $this->accessControlService->normalizeMenuAccess($validated['menu_access']);
                 }
                 if (array_key_exists('operational_access', $validated)) {
-                    $userData['operational_access'] = $validated['operational_access'];
+                    $userData['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access']);
                 }
 
                 $nasabah->user->update($userData);
+                $this->accessControlService->syncUserAccess($nasabah->user->refresh());
             }
 
             return $this->nasabahService->update($id, [
@@ -134,6 +144,8 @@ class NasabahController extends ApiController
             $this->nasabahService->delete($id);
 
             if ($user && $user->role === 'nasabah') {
+                $user->syncRoles([]);
+                $user->syncPermissions([]);
                 $user->delete();
             }
         });

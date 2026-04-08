@@ -28,12 +28,7 @@ class AuthController extends ApiController
         return $this->successResponse('Login berhasil', [
             'token' => $token,
             'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'nama' => $user->nama,
-                'email' => $user->email,
-                'role' => $user->role,
-            ],
+            'user' => new UserResource($user),
         ]);
     }
 

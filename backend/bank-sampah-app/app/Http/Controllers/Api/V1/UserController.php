@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\V1\UserResource;
 use App\Models\User;
+use App\Services\AccessControlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class UserController extends ApiController
 {
+    public function __construct(private readonly AccessControlService $accessControlService) {}
+
     public function index(Request $request): JsonResponse
     {
         $users = User::query()
@@ -37,10 +40,13 @@ class UserController extends ApiController
             'role' => ['required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
             'status' => ['nullable', Rule::in(['Aktif', 'Inactive'])],
             'menu_access' => 'nullable|array',
-            'menu_access.*' => 'string|max:255',
+            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
             'operational_access' => 'nullable|array',
-            'operational_access.*' => 'string|max:255',
+            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
         ]);
+
+        $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
+        $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
 
         $user = User::query()->create([
             'nama' => $validated['nama'],
@@ -48,9 +54,11 @@ class UserController extends ApiController
             'password' => $validated['password'],
             'role' => $validated['role'],
             'status' => $validated['status'] ?? 'Aktif',
-            'menu_access' => $validated['menu_access'] ?? [],
-            'operational_access' => $validated['operational_access'] ?? [],
+            'menu_access' => $menuAccess,
+            'operational_access' => $operationalAccess,
         ]);
+
+        $this->accessControlService->syncUserAccess($user, $menuAccess, $operationalAccess);
 
         return $this->successResponse('User berhasil ditambahkan', new UserResource($user), 201);
     }
@@ -73,13 +81,23 @@ class UserController extends ApiController
             'role' => ['sometimes', 'required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
             'status' => ['sometimes', 'required', Rule::in(['Aktif', 'Inactive'])],
             'menu_access' => 'sometimes|array',
-            'menu_access.*' => 'string|max:255',
+            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
             'operational_access' => 'sometimes|array',
-            'operational_access.*' => 'string|max:255',
+            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
         ]);
+
+        if (array_key_exists('menu_access', $validated)) {
+            $validated['menu_access'] = $this->accessControlService->normalizeMenuAccess($validated['menu_access']);
+        }
+
+        if (array_key_exists('operational_access', $validated)) {
+            $validated['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access']);
+        }
 
         $user->fill($validated);
         $user->save();
+
+        $this->accessControlService->syncUserAccess($user);
 
         return $this->successResponse('User berhasil diupdate', new UserResource($user->refresh()));
     }
@@ -87,6 +105,8 @@ class UserController extends ApiController
     public function destroy(int $id): JsonResponse
     {
         $user = User::query()->findOrFail($id);
+        $user->syncRoles([]);
+        $user->syncPermissions([]);
         $user->delete();
 
         return $this->successResponse('User berhasil dihapus');

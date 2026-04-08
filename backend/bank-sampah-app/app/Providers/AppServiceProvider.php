@@ -14,6 +14,7 @@ use App\Repositories\Eloquent\OrderRepository;
 use App\Repositories\Eloquent\PembayaranRepository;
 use App\Repositories\Eloquent\SampahRepository;
 use App\Repositories\Eloquent\TransaksiRepository;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -36,6 +37,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::before(function ($user, string $ability): ?bool {
+            return $user->role === 'super_admin' ? true : null;
+        });
     }
 }
