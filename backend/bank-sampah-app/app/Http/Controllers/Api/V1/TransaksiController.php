@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\TransaksiStoreRequest;
+use App\Http\Requests\Api\V1\TransaksiUpdateRequest;
 use App\Http\Resources\V1\TransaksiResource;
 use App\Services\TransaksiService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class TransaksiController extends ApiController
 {
@@ -18,17 +19,9 @@ class TransaksiController extends ApiController
         return $this->successResponse('Data transaksi berhasil diambil', $data);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(TransaksiStoreRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'nasabah_id' => 'required|exists:nasabah,id',
-            'tanggal' => 'required|date',
-            'items' => 'required|array|min:1',
-            'items.*.sampah_id' => 'required|exists:sampah,id',
-            'items.*.berat' => 'required|numeric|min:0.01',
-            'items.*.subtotal' => 'required|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
         $transaksi = $this->transaksiService->create($validated);
 
@@ -42,17 +35,9 @@ class TransaksiController extends ApiController
         return $this->successResponse('Detail transaksi berhasil diambil', new TransaksiResource($transaksi));
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(TransaksiUpdateRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'nasabah_id' => 'required|exists:nasabah,id',
-            'tanggal' => 'required|date',
-            'items' => 'required|array|min:1',
-            'items.*.sampah_id' => 'required|exists:sampah,id',
-            'items.*.berat' => 'required|numeric|min:0.01',
-            'items.*.subtotal' => 'required|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
         $transaksi = $this->transaksiService->update($id, $validated);
 

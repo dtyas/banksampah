@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\PembayaranStoreRequest;
+use App\Http\Requests\Api\V1\PembayaranUpdateRequest;
 use App\Http\Resources\V1\PembayaranResource;
 use App\Services\PembayaranService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class PembayaranController extends ApiController
 {
@@ -18,15 +19,9 @@ class PembayaranController extends ApiController
         return $this->successResponse('Data pembayaran berhasil diambil', $data);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(PembayaranStoreRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'transaksi_id' => 'required|exists:transaksi,id',
-            'jumlah' => 'required|numeric|min:0',
-            'metode' => 'required|string|max:255',
-            'status' => 'required|in:menunggu,diverifikasi,diproses,berhasil,ditolak',
-            'tanggal' => 'required|date',
-        ]);
+        $validated = $request->validated();
 
         $pembayaran = $this->pembayaranService->create($validated);
 
@@ -40,15 +35,9 @@ class PembayaranController extends ApiController
         return $this->successResponse('Detail pembayaran berhasil diambil', new PembayaranResource($pembayaran));
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(PembayaranUpdateRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'transaksi_id' => 'required|exists:transaksi,id',
-            'jumlah' => 'required|numeric|min:0',
-            'metode' => 'required|string|max:255',
-            'status' => 'required|in:menunggu,diverifikasi,diproses,berhasil,ditolak',
-            'tanggal' => 'required|date',
-        ]);
+        $validated = $request->validated();
 
         $pembayaran = $this->pembayaranService->update($id, $validated);
 

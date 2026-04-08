@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\UserStoreRequest;
+use App\Http\Requests\Api\V1\UserUpdateRequest;
 use App\Http\Resources\V1\UserResource;
 use App\Models\Nasabah;
 use App\Models\User;
@@ -9,7 +11,6 @@ use App\Services\AccessControlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class UserController extends ApiController
 {
@@ -33,19 +34,9 @@ class UserController extends ApiController
         return $this->successResponse('Data user berhasil diambil', UserResource::collection($users));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(UserStoreRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => ['required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
-            'status' => ['nullable', Rule::in(['Aktif', 'Inactive'])],
-            'menu_access' => 'nullable|array',
-            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
-            'operational_access' => 'nullable|array',
-            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
-        ]);
+        $validated = $request->validated();
 
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
@@ -77,21 +68,11 @@ class UserController extends ApiController
         return $this->successResponse('Detail user berhasil diambil', new UserResource($user));
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UserUpdateRequest $request, int $id): JsonResponse
     {
         $user = User::query()->findOrFail($id);
 
-        $validated = $request->validate([
-            'nama' => 'sometimes|required|string|max:255',
-            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => 'sometimes|required|string|min:8|confirmed',
-            'role' => ['sometimes', 'required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
-            'status' => ['sometimes', 'required', Rule::in(['Aktif', 'Inactive'])],
-            'menu_access' => 'sometimes|array',
-            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
-            'operational_access' => 'sometimes|array',
-            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
-        ]);
+        $validated = $request->validated();
 
         if (array_key_exists('menu_access', $validated)) {
             $validated['menu_access'] = $this->accessControlService->normalizeMenuAccess($validated['menu_access']);

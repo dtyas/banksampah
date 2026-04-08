@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\NasabahStoreRequest;
+use App\Http\Requests\Api\V1\NasabahUpdateRequest;
 use App\Http\Resources\V1\NasabahResource;
 use App\Models\User;
 use App\Services\AccessControlService;
 use App\Services\NasabahService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class NasabahController extends ApiController
 {
@@ -26,20 +26,9 @@ class NasabahController extends ApiController
         return $this->successResponse('Data nasabah berhasil diambil', $data);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(NasabahStoreRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'alamat' => 'nullable|string',
-            'no_hp' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255|unique:users,email',
-            'password' => 'nullable|string|min:8|confirmed',
-            'status' => 'nullable|in:Aktif,Inactive',
-            'menu_access' => 'nullable|array',
-            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
-            'operational_access' => 'nullable|array',
-            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
-        ]);
+        $validated = $request->validated();
 
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? ['Pencairan Saldo']);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? ['Ajukan Pencairan Saldo']);
@@ -76,25 +65,9 @@ class NasabahController extends ApiController
         return $this->successResponse('Detail nasabah berhasil diambil', new NasabahResource($nasabah));
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(NasabahUpdateRequest $request, int $id): JsonResponse
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'alamat' => 'nullable|string',
-            'no_hp' => 'nullable|string|max:20',
-            'email' => [
-                'nullable',
-                'email',
-                'max:255',
-                Rule::unique('users', 'email')->ignore($this->nasabahService->findOrFail($id)->user_id),
-            ],
-            'password' => 'nullable|string|min:8|confirmed',
-            'status' => 'nullable|in:Aktif,Inactive',
-            'menu_access' => 'nullable|array',
-            'menu_access.*' => ['string', Rule::in(AccessControlService::MENU_OPTIONS)],
-            'operational_access' => 'nullable|array',
-            'operational_access.*' => ['string', Rule::in(AccessControlService::OPERATIONAL_OPTIONS)],
-        ]);
+        $validated = $request->validated();
 
         $nasabah = DB::transaction(function () use ($id, $validated) {
             $nasabah = $this->nasabahService->findOrFail($id);
