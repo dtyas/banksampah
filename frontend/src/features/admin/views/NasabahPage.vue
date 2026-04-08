@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import api from "../../../api/http";
+import { AxiosError } from "axios";
+import { useAuthStore } from "../../../stores/auth";
+import { canDoOperation } from "../../auth/access-control";
 
 type Nasabah = {
   id: number;
@@ -12,12 +15,26 @@ type Nasabah = {
 
 const rows = ref<Nasabah[]>([]);
 const editingId = ref<number | null>(null);
+const authStore = useAuthStore();
+const canCreateNasabah = computed(() =>
+  canDoOperation(authStore.user, "create"),
+);
+const canUpdateNasabah = computed(() =>
+  canDoOperation(authStore.user, "update"),
+);
+const canDeleteNasabah = computed(() =>
+  canDoOperation(authStore.user, "delete"),
+);
+const showPassword = ref(false);
+const showPasswordConfirmation = ref(false);
+const formErrors = ref<Record<string, string>>({});
 const form = reactive({
   nama: "",
   alamat: "",
   no_hp: "",
   email: "",
   password: "",
+  password_confirmation: "",
 });
 
 async function loadNasabah() {
@@ -27,35 +44,82 @@ async function loadNasabah() {
 
 function startEdit(item: Nasabah) {
   editingId.value = item.id;
+  formErrors.value = {};
   form.nama = item.nama ?? "";
   form.alamat = item.alamat ?? "";
   form.no_hp = item.no_hp ?? "";
   form.email = item.user?.email ?? "";
   form.password = "";
+  form.password_confirmation = "";
 }
 
 function resetForm() {
   editingId.value = null;
+  formErrors.value = {};
+  showPassword.value = false;
+  showPasswordConfirmation.value = false;
   form.nama = "";
   form.alamat = "";
   form.no_hp = "";
   form.email = "";
   form.password = "";
+  form.password_confirmation = "";
+}
+
+function applyValidationErrors(error: unknown) {
+  const axiosError = error as AxiosError<{ errors?: Record<string, string[]> }>;
+  const errors = axiosError.response?.data?.errors;
+
+  if (!errors) {
+    return;
+  }
+
+  const mapped: Record<string, string> = {};
+  Object.entries(errors).forEach(([field, messages]) => {
+    mapped[field] = messages[0] ?? "Input tidak valid";
+  });
+
+  formErrors.value = mapped;
 }
 
 async function save() {
+  formErrors.value = {};
+
+  if (editingId.value && !canUpdateNasabah.value) {
+    formErrors.value.general =
+      "Anda tidak memiliki akses untuk mengubah nasabah.";
+
+    return;
+  }
+
+  if (!editingId.value && !canCreateNasabah.value) {
+    formErrors.value.general =
+      "Anda tidak memiliki akses untuk menambah nasabah.";
+
+    return;
+  }
+
   const payload: Record<string, string> = {
     nama: form.nama,
     alamat: form.alamat,
     no_hp: form.no_hp,
     email: form.email,
   };
-  if (form.password) payload.password = form.password;
+  if (form.password) {
+    payload.password = form.password;
+    payload.password_confirmation = form.password_confirmation;
+  }
 
-  if (editingId.value) {
-    await api.put(`/nasabah/${editingId.value}`, payload);
-  } else {
-    await api.post("/nasabah", payload);
+  try {
+    if (editingId.value) {
+      await api.put(`/nasabah/${editingId.value}`, payload);
+    } else {
+      await api.post("/nasabah", payload);
+    }
+  } catch (error) {
+    applyValidationErrors(error);
+
+    return;
   }
 
   await loadNasabah();
@@ -63,6 +127,10 @@ async function save() {
 }
 
 async function removeNasabah(id: number) {
+  if (!canDeleteNasabah.value) {
+    return;
+  }
+
   await api.delete(`/nasabah/${id}`);
   await loadNasabah();
 }
@@ -74,38 +142,129 @@ onMounted(loadNasabah);
   <section class="space-y-6">
     <div class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <h3 class="text-lg font-semibold text-slate-900">Form Nasabah</h3>
+      <p v-if="formErrors.general" class="mt-2 text-sm text-rose-600">
+        {{ formErrors.general }}
+      </p>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
-        <input
-          v-model="form.nama"
-          placeholder="Nama"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
-        <input
-          v-model="form.email"
-          placeholder="Email user nasabah"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
-        <input
-          v-model="form.no_hp"
-          placeholder="No HP"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
-        <input
-          v-model="form.password"
-          type="password"
-          placeholder="Password (opsional saat edit)"
-          class="w-full rounded-xl border border-slate-300 px-4 py-3"
-        />
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Nama</label
+          >
+          <input
+            v-model="form.nama"
+            placeholder="Nama"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p v-if="formErrors.nama" class="mt-1 text-xs text-rose-600">
+            {{ formErrors.nama }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Email User Nasabah</label
+          >
+          <input
+            v-model="form.email"
+            placeholder="Email user nasabah"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p v-if="formErrors.email" class="mt-1 text-xs text-rose-600">
+            {{ formErrors.email }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >No HP</label
+          >
+          <input
+            v-model="form.no_hp"
+            placeholder="No HP"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p v-if="formErrors.no_hp" class="mt-1 text-xs text-rose-600">
+            {{ formErrors.no_hp }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Password</label
+          >
+          <div class="relative">
+            <input
+              v-model="form.password"
+              :type="showPassword ? 'text' : 'password'"
+              :placeholder="
+                editingId
+                  ? 'Password (opsional saat edit)'
+                  : 'Password (opsional)'
+              "
+              class="w-full rounded-xl border border-slate-300 px-4 py-3"
+            />
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
+              @click="showPassword = !showPassword"
+            >
+              {{ showPassword ? "Hide" : "Show" }}
+            </button>
+          </div>
+          <p v-if="formErrors.password" class="mt-1 text-xs text-rose-600">
+            {{ formErrors.password }}
+          </p>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Konfirmasi Password</label
+          >
+          <div class="relative">
+            <input
+              v-model="form.password_confirmation"
+              :type="showPasswordConfirmation ? 'text' : 'password'"
+              :placeholder="
+                editingId
+                  ? 'Konfirmasi password (jika diubah)'
+                  : 'Konfirmasi password (jika diisi)'
+              "
+              class="w-full rounded-xl border border-slate-300 px-4 py-3"
+            />
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
+              @click="showPasswordConfirmation = !showPasswordConfirmation"
+            >
+              {{ showPasswordConfirmation ? "Hide" : "Show" }}
+            </button>
+          </div>
+          <p
+            v-if="formErrors.password_confirmation"
+            class="mt-1 text-xs text-rose-600"
+          >
+            {{ formErrors.password_confirmation }}
+          </p>
+        </div>
       </div>
-      <textarea
-        v-model="form.alamat"
-        rows="3"
-        placeholder="Alamat"
-        class="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3"
-      />
+      <div class="mt-4">
+        <label class="mb-2 block text-sm font-medium text-slate-700"
+          >Alamat</label
+        >
+        <textarea
+          v-model="form.alamat"
+          rows="3"
+          placeholder="Alamat"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3"
+        />
+        <p v-if="formErrors.alamat" class="mt-1 text-xs text-rose-600">
+          {{ formErrors.alamat }}
+        </p>
+      </div>
       <div class="mt-4 flex gap-3">
         <button
-          class="rounded-xl bg-emerald-600 px-5 py-3 text-white"
+          class="rounded-xl bg-emerald-600 px-5 py-3 text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+          :disabled="editingId ? !canUpdateNasabah : !canCreateNasabah"
           @click="save"
         >
           {{ editingId ? "Update" : "Tambah" }}
@@ -143,17 +302,25 @@ onMounted(loadNasabah);
             <td class="px-5 py-4">
               <div class="flex gap-2">
                 <button
+                  v-if="canUpdateNasabah"
                   class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
                   @click="startEdit(item)"
                 >
                   Edit
                 </button>
                 <button
+                  v-if="canDeleteNasabah"
                   class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
                   @click="removeNasabah(item.id)"
                 >
                   Hapus
                 </button>
+                <span
+                  v-if="!canUpdateNasabah && !canDeleteNasabah"
+                  class="text-xs text-slate-400"
+                >
+                  Tidak ada akses aksi
+                </span>
               </div>
             </td>
           </tr>

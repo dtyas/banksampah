@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
+import { useAuthStore } from "../../../stores/auth";
+import { canAccessMenu } from "../../auth/access-control";
 
 const route = useRoute();
+const authStore = useAuthStore();
 
 function isActive(name: string): boolean {
   return route.name === name;
+}
+
+function canMenu(menuLabel: string): boolean {
+  return canAccessMenu(authStore.user, menuLabel);
 }
 </script>
 
@@ -23,7 +30,7 @@ function isActive(name: string): boolean {
 
     <nav class="px-5 pb-6">
       <ul class="space-y-2">
-        <li>
+        <li v-if="canMenu('Dashboard')">
           <router-link
             :to="{ name: 'dashboard' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -54,7 +61,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-semibold">Dashboard</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Nasabah')">
           <router-link
             :to="{ name: 'nasabah' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -85,7 +92,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Nasabah</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Kategori Sampah')">
           <router-link
             :to="{ name: 'kategori-sampah' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -116,7 +123,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Kategori Sampah</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Sampah')">
           <router-link
             :to="{ name: 'sampah' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -147,7 +154,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Sampah</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Transaksi')">
           <router-link
             :to="{ name: 'transaksi' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -178,7 +185,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Transaksi</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Pembayaran')">
           <router-link
             :to="{ name: 'pembayaran' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -209,7 +216,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Pembayaran</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Pencairan Saldo')">
           <router-link
             :to="{ name: 'pencairan-saldo' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -240,7 +247,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">Pencairan Saldo</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('User')">
           <router-link
             :to="{ name: 'user' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
@@ -271,7 +278,7 @@ function isActive(name: string): boolean {
             <span class="text-[15px] font-medium">User</span>
           </router-link>
         </li>
-        <li>
+        <li v-if="canMenu('Laporan')">
           <router-link
             :to="{ name: 'laporan' }"
             class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"

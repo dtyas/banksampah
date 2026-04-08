@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { canAccessRoute, getFirstAccessibleRoute } from '../features/auth/access-control';
 import LoginPage from '../features/legacy/LoginPage.vue';
 import AdminShell from '../features/legacy/AdminShell.vue';
 import DashboardPage from '../features/admin/views/DashboardPage.vue';
@@ -78,15 +79,31 @@ const router = createRouter({
     routes,
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
     const authStore = useAuthStore();
 
-    if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    if (to.meta.requiresAuth && !authStore.token) {
         return { name: 'login' };
     }
 
+    if (authStore.token && !authStore.user) {
+        try {
+            await authStore.hydrateUser();
+        } catch {
+            await authStore.signOut();
+            return { name: 'login' };
+        }
+    }
+
     if (to.meta.guest && authStore.isAuthenticated) {
-        return { name: 'dashboard' };
+        return { name: getFirstAccessibleRoute(authStore.user) };
+    }
+
+    if (to.meta.requiresAuth) {
+        const routeName = String(to.name ?? 'dashboard');
+        if (!canAccessRoute(authStore.user, routeName)) {
+            return { name: getFirstAccessibleRoute(authStore.user) };
+        }
     }
 
     return true;

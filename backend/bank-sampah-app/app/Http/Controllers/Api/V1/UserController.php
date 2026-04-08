@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\V1\UserResource;
+use App\Models\Nasabah;
 use App\Models\User;
 use App\Services\AccessControlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class UserController extends ApiController
@@ -36,7 +38,7 @@ class UserController extends ApiController
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
             'role' => ['required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
             'status' => ['nullable', Rule::in(['Aktif', 'Inactive'])],
             'menu_access' => 'nullable|array',
@@ -48,17 +50,22 @@ class UserController extends ApiController
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
 
-        $user = User::query()->create([
-            'nama' => $validated['nama'],
-            'email' => $validated['email'],
-            'password' => $validated['password'],
-            'role' => $validated['role'],
-            'status' => $validated['status'] ?? 'Aktif',
-            'menu_access' => $menuAccess,
-            'operational_access' => $operationalAccess,
-        ]);
+        $user = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess): User {
+            $user = User::query()->create([
+                'nama' => $validated['nama'],
+                'email' => $validated['email'],
+                'password' => $validated['password'],
+                'role' => $validated['role'],
+                'status' => $validated['status'] ?? 'Aktif',
+                'menu_access' => $menuAccess,
+                'operational_access' => $operationalAccess,
+            ]);
 
-        $this->accessControlService->syncUserAccess($user, $menuAccess, $operationalAccess);
+            $this->accessControlService->syncUserAccess($user, $menuAccess, $operationalAccess);
+            $this->syncNasabahProfile($user);
+
+            return $user;
+        });
 
         return $this->successResponse('User berhasil ditambahkan', new UserResource($user), 201);
     }
@@ -77,7 +84,7 @@ class UserController extends ApiController
         $validated = $request->validate([
             'nama' => 'sometimes|required|string|max:255',
             'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => 'sometimes|required|string|min:8',
+            'password' => 'sometimes|required|string|min:8|confirmed',
             'role' => ['sometimes', 'required', Rule::in(['super_admin', 'petugas', 'nasabah'])],
             'status' => ['sometimes', 'required', Rule::in(['Aktif', 'Inactive'])],
             'menu_access' => 'sometimes|array',
@@ -94,10 +101,13 @@ class UserController extends ApiController
             $validated['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access']);
         }
 
-        $user->fill($validated);
-        $user->save();
+        DB::transaction(function () use ($user, $validated): void {
+            $user->fill($validated);
+            $user->save();
 
-        $this->accessControlService->syncUserAccess($user);
+            $this->accessControlService->syncUserAccess($user);
+            $this->syncNasabahProfile($user);
+        });
 
         return $this->successResponse('User berhasil diupdate', new UserResource($user->refresh()));
     }
@@ -105,10 +115,30 @@ class UserController extends ApiController
     public function destroy(int $id): JsonResponse
     {
         $user = User::query()->findOrFail($id);
-        $user->syncRoles([]);
-        $user->syncPermissions([]);
-        $user->delete();
+
+        DB::transaction(function () use ($user): void {
+            Nasabah::query()->where('user_id', $user->id)->delete();
+            $user->syncRoles([]);
+            $user->syncPermissions([]);
+            $user->delete();
+        });
 
         return $this->successResponse('User berhasil dihapus');
+    }
+
+    private function syncNasabahProfile(User $user): void
+    {
+        if ($user->role !== 'nasabah') {
+            Nasabah::query()->where('user_id', $user->id)->delete();
+
+            return;
+        }
+
+        Nasabah::query()->updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'nama' => $user->nama,
+            ],
+        );
     }
 }
