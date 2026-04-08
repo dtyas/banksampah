@@ -1,3 +1,13 @@
+<script setup lang="ts">
+import { useRoute } from "vue-router";
+
+const route = useRoute();
+
+function isActive(name: string): boolean {
+  return route.name === name;
+}
+</script>
+
 <template>
   <aside
     class="w-full border-b border-slate-200 bg-white lg:min-h-screen lg:w-[300px] lg:border-b-0 lg:border-r"
@@ -14,10 +24,14 @@
     <nav class="px-5 pb-6">
       <ul class="space-y-2">
         <li>
-          <a
-            href="#"
-            data-page="dashboard"
-            class="nav-link flex items-center gap-4 rounded-[22px] bg-sky-50 px-5 py-3.5 text-sky-700"
+          <router-link
+            :to="{ name: 'dashboard' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('dashboard')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100"
@@ -38,13 +52,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-semibold">Dashboard</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="nasabah"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'nasabah' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('nasabah')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -65,13 +83,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Nasabah</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="jenisSampah"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'kategori-sampah' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('kategori-sampah')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -92,13 +114,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Kategori Sampah</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="sampah"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'sampah' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('sampah')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -119,13 +145,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Sampah</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="transaksi"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'transaksi' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('transaksi')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -146,13 +176,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Transaksi</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="pembayaran"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'pembayaran' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('pembayaran')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -173,13 +207,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Pembayaran</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="pencairanSaldo"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'pencairan-saldo' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('pencairan-saldo')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -200,13 +238,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Pencairan Saldo</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="user"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'user' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('user')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -227,13 +269,17 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">User</span>
-          </a>
+          </router-link>
         </li>
         <li>
-          <a
-            href="#"
-            data-page="laporan"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 text-slate-700 transition hover:bg-slate-100"
+          <router-link
+            :to="{ name: 'laporan' }"
+            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+            :class="
+              isActive('laporan')
+                ? 'bg-sky-50 text-sky-700'
+                : 'text-slate-700 hover:bg-slate-100'
+            "
           >
             <span
               class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
@@ -254,7 +300,7 @@
               </svg>
             </span>
             <span class="text-[15px] font-medium">Laporan</span>
-          </a>
+          </router-link>
         </li>
       </ul>
     </nav>

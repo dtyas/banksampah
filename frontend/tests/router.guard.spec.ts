@@ -7,20 +7,20 @@ describe('router guards', () => {
     beforeEach(async () => {
         localStorage.clear();
         setActivePinia(createPinia());
-        router.push('/');
+        await router.push('/login');
         await router.isReady();
     });
 
     it('redirects unauthenticated user to login', async () => {
-        const target = await router.push('/');
-        expect(target?.name || router.currentRoute.value.name).toBe('login');
+        await router.push('/');
+        expect(router.currentRoute.value.name).toBe('login');
     });
 
     it('allows authenticated user to access dashboard', async () => {
         const store = useAuthStore();
         store.token = 'token-123';
 
-        const target = await router.push('/');
-        expect(target?.name || router.currentRoute.value.name).toBe('dashboard');
+        await router.push('/');
+        expect(router.currentRoute.value.name).toBe('dashboard');
     });
 });
