@@ -17,10 +17,24 @@ class Pembayaran extends Model
         'metode',
         'status',
         'tanggal',
+        'verified_at',
+        'verified_by',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'verified_at' => 'datetime',
+        ];
+    }
 
     public function transaksi()
     {
         return $this->belongsTo(Transaksi::class);
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

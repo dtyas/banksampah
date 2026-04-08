@@ -98,7 +98,15 @@ class UserController extends ApiController
         $user = User::query()->findOrFail($id);
 
         DB::transaction(function () use ($user): void {
-            Nasabah::query()->where('user_id', $user->id)->delete();
+            if ($user->role === 'nasabah') {
+                Nasabah::query()->where('user_id', $user->id)->delete();
+                $user->syncRoles([]);
+                $user->syncPermissions([]);
+                $user->update(['status' => 'Inactive']);
+
+                return;
+            }
+
             $user->syncRoles([]);
             $user->syncPermissions([]);
             $user->delete();
@@ -115,11 +123,15 @@ class UserController extends ApiController
             return;
         }
 
-        Nasabah::query()->updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'nama' => $user->nama,
-            ],
-        );
+        $nasabah = Nasabah::query()->withTrashed()->firstOrNew([
+            'user_id' => $user->id,
+        ]);
+
+        $nasabah->nama = $user->nama;
+        $nasabah->save();
+
+        if ($nasabah->trashed()) {
+            $nasabah->restore();
+        }
     }
 }

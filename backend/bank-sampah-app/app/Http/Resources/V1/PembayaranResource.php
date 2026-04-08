@@ -16,6 +16,8 @@ class PembayaranResource extends JsonResource
             'metode' => $this->metode,
             'status' => $this->status,
             'tanggal' => $this->tanggal,
+            'verified_at' => $this->verified_at,
+            'verified_by' => $this->verified_by,
             'transaksi' => $this->whenLoaded('transaksi', function (): ?array {
                 if (! $this->transaksi) {
                     return null;
@@ -26,6 +28,17 @@ class PembayaranResource extends JsonResource
                     'nasabah_id' => $this->transaksi->nasabah_id,
                     'tanggal' => $this->transaksi->tanggal,
                     'total_harga' => $this->transaksi->total_harga,
+                ];
+            }),
+            'verifier' => $this->whenLoaded('verifier', function (): ?array {
+                if (! $this->verifier) {
+                    return null;
+                }
+
+                return [
+                    'id' => $this->verifier->id,
+                    'nama' => $this->verifier->nama,
+                    'email' => $this->verifier->email,
                 ];
             }),
             'created_at' => $this->created_at,

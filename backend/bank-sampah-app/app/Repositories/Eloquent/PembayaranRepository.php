@@ -10,12 +10,12 @@ class PembayaranRepository implements PembayaranRepositoryInterface
 {
     public function allWithTransaksi(): Collection
     {
-        return Pembayaran::query()->with('transaksi')->latest()->get();
+        return Pembayaran::query()->with(['transaksi', 'verifier'])->latest()->get();
     }
 
     public function findWithTransaksiOrFail(int $id): Pembayaran
     {
-        return Pembayaran::query()->with('transaksi')->findOrFail($id);
+        return Pembayaran::query()->with(['transaksi', 'verifier'])->findOrFail($id);
     }
 
     public function create(array $data): Pembayaran

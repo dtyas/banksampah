@@ -27,11 +27,16 @@ class PembayaranService
     public function create(array $data): Pembayaran
     {
         return DB::transaction(function () use ($data): Pembayaran {
+            $actorUserIdFromPayload = $data['actor_user_id'] ?? null;
+            unset($data['actor_user_id']);
+
             $pembayaran = $this->pembayaranRepository->create($data)->load('transaksi');
 
-            $actorUserId = $pembayaran->transaksi?->user_id !== null
+            $actorUserId = $actorUserIdFromPayload !== null
+                ? (int) $actorUserIdFromPayload
+                : ($pembayaran->transaksi?->user_id !== null
                 ? (int) $pembayaran->transaksi->user_id
-                : null;
+                : null);
 
             $this->auditTrailService->record(
                 action: 'pembayaran.created',
@@ -55,15 +60,27 @@ class PembayaranService
     public function update(int $id, array $data): Pembayaran
     {
         return DB::transaction(function () use ($id, $data): Pembayaran {
+            $actorUserIdFromPayload = $data['actor_user_id'] ?? null;
+            unset($data['actor_user_id']);
+
             $pembayaran = $this->findOrFail($id);
             $beforeStatus = $pembayaran->status;
             $beforeJumlah = (float) $pembayaran->jumlah;
 
+            if (($data['status'] ?? null) === 'diverifikasi') {
+                $data['verified_at'] = now();
+                if ($actorUserIdFromPayload !== null) {
+                    $data['verified_by'] = (int) $actorUserIdFromPayload;
+                }
+            }
+
             $updated = $this->pembayaranRepository->update($pembayaran, $data)->load('transaksi');
 
-            $actorUserId = $updated->transaksi?->user_id !== null
+            $actorUserId = $actorUserIdFromPayload !== null
+                ? (int) $actorUserIdFromPayload
+                : ($updated->transaksi?->user_id !== null
                 ? (int) $updated->transaksi->user_id
-                : null;
+                : null);
 
             $this->auditTrailService->record(
                 action: 'pembayaran.updated',
@@ -81,6 +98,8 @@ class PembayaranService
                     'after' => [
                         'status' => $updated->status,
                         'jumlah' => (float) $updated->jumlah,
+                        'verified_at' => $updated->verified_at,
+                        'verified_by' => $updated->verified_by,
                     ],
                     'metode' => $updated->metode,
                     'tanggal' => $updated->tanggal,

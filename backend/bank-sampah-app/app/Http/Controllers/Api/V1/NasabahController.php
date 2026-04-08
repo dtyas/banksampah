@@ -119,7 +119,7 @@ class NasabahController extends ApiController
             if ($user && $user->role === 'nasabah') {
                 $user->syncRoles([]);
                 $user->syncPermissions([]);
-                $user->delete();
+                $user->update(['status' => 'Inactive']);
             }
         });
 

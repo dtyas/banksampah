@@ -38,6 +38,7 @@ class PembayaranController extends ApiController
     public function update(PembayaranUpdateRequest $request, int $id): JsonResponse
     {
         $validated = $request->validated();
+        $validated['actor_user_id'] = (int) $request->user()->id;
 
         $pembayaran = $this->pembayaranService->update($id, $validated);
 
