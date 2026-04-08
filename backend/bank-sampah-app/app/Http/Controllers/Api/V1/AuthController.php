@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Http\Resources\V1\UserResource;
 
 class AuthController extends ApiController
 {
@@ -38,7 +39,7 @@ class AuthController extends ApiController
 
     public function me(Request $request): JsonResponse
     {
-        return $this->successResponse('Profil user berhasil diambil', $request->user());
+        return $this->successResponse('Profil user berhasil diambil', new UserResource($request->user()));
     }
 
     public function logout(Request $request): JsonResponse

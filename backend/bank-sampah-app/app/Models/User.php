@@ -15,6 +15,9 @@ class User extends Authenticatable
         'nama',
         'email',
         'role',
+        'status',
+        'menu_access',
+        'operational_access',
         'password',
     ];
 
@@ -28,6 +31,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'menu_access' => 'array',
+            'operational_access' => 'array',
         ];
     }
 
