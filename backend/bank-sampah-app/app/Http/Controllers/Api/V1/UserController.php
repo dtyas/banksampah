@@ -40,6 +40,10 @@ class UserController extends ApiController
 
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
+        if (($validated['role'] ?? null) === 'nasabah') {
+            $menuAccess = ['Pencairan Saldo'];
+            $operationalAccess = ['Ajukan Pencairan Saldo'];
+        }
 
         $user = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess): User {
             $user = User::query()->create([
@@ -80,6 +84,11 @@ class UserController extends ApiController
 
         if (array_key_exists('operational_access', $validated)) {
             $validated['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access']);
+        }
+
+        if (($validated['role'] ?? null) === 'nasabah') {
+            $validated['menu_access'] = ['Pencairan Saldo'];
+            $validated['operational_access'] = ['Ajukan Pencairan Saldo'];
         }
 
         DB::transaction(function () use ($user, $validated): void {

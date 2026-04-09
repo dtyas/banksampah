@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PermissionsSeeder::class,
+            KategoriSampahSeeder::class,
         ]);
 
         User::query()->firstOrCreate([
