@@ -6,9 +6,12 @@ use App\Http\Requests\Api\V1\NasabahStoreRequest;
 use App\Http\Requests\Api\V1\NasabahUpdateRequest;
 use App\Http\Resources\V1\NasabahResource;
 use App\Models\User;
+use App\Models\Nasabah;
 use App\Services\AccessControlService;
+use App\Services\PembayaranService;
 use App\Services\NasabahService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -17,6 +20,7 @@ class NasabahController extends ApiController
     public function __construct(
         private readonly NasabahService $nasabahService,
         private readonly AccessControlService $accessControlService,
+        private readonly PembayaranService $pembayaranService,
     ) {}
 
     public function index(): JsonResponse
@@ -52,6 +56,9 @@ class NasabahController extends ApiController
                 'nama' => $validated['nama'],
                 'alamat' => $validated['alamat'] ?? null,
                 'no_hp' => $validated['no_hp'] ?? null,
+                'payout_channel' => $validated['payout_channel'] ?? null,
+                'account_number' => $validated['account_number'] ?? null,
+                'account_holder_name' => $validated['account_holder_name'] ?? null,
             ])->load('user');
         });
 
@@ -102,6 +109,9 @@ class NasabahController extends ApiController
                 'nama' => $validated['nama'],
                 'alamat' => $validated['alamat'] ?? null,
                 'no_hp' => $validated['no_hp'] ?? null,
+                'payout_channel' => $validated['payout_channel'] ?? null,
+                'account_number' => $validated['account_number'] ?? null,
+                'account_holder_name' => $validated['account_holder_name'] ?? null,
             ])->load('user');
         });
 
@@ -124,5 +134,60 @@ class NasabahController extends ApiController
         });
 
         return $this->successResponse('Data nasabah berhasil dihapus');
+    }
+
+    public function ledger(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user || $user->role !== 'nasabah') {
+            return $this->errorResponse('Akses ledger hanya untuk nasabah', null, 403);
+        }
+
+        $nasabah = Nasabah::query()->where('user_id', $user->id)->first();
+        if (! $nasabah) {
+            return $this->errorResponse('Profil nasabah tidak ditemukan', null, 404);
+        }
+        $saldo = $this->pembayaranService->calculateSaldoNasabah($nasabah->id);
+
+        $transaksi = $nasabah->transaksi()
+            ->latest('tanggal')
+            ->limit(10)
+            ->get(['id', 'tanggal', 'total_harga', 'total_berat']);
+
+        $pembayaran = \App\Models\Pembayaran::query()
+            ->whereHas('transaksi', fn($query) => $query->where('nasabah_id', $nasabah->id))
+            ->latest('tanggal')
+            ->limit(10)
+            ->get(['id', 'transaksi_id', 'jumlah', 'status', 'metode', 'tanggal']);
+
+        return $this->successResponse('Ledger nasabah berhasil diambil', [
+            'nasabah' => new NasabahResource($nasabah->loadMissing('user')),
+            'saldo' => $saldo,
+            'transaksi_terakhir' => $transaksi,
+            'pencairan_terakhir' => $pembayaran,
+        ]);
+    }
+
+    public function updatePayoutAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user || $user->role !== 'nasabah') {
+            return $this->errorResponse('Akses hanya untuk nasabah', null, 403);
+        }
+
+        $validated = $request->validate([
+            'payout_channel' => 'required|string|max:50',
+            'account_number' => 'required|string|max:100',
+            'account_holder_name' => 'required|string|max:100',
+        ]);
+
+        $nasabah = Nasabah::query()->where('user_id', $user->id)->first();
+        if (! $nasabah) {
+            return $this->errorResponse('Profil nasabah tidak ditemukan', null, 404);
+        }
+
+        $nasabah->update($validated);
+
+        return $this->successResponse('Rekening/ewallet berhasil diperbarui', new NasabahResource($nasabah->refresh()));
     }
 }

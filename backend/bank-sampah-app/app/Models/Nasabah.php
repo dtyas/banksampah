@@ -17,6 +17,9 @@ class Nasabah extends Model
         'nama',
         'alamat',
         'no_hp',
+        'payout_channel',
+        'account_number',
+        'account_holder_name',
     ];
 
     public function user()

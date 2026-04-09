@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Pembayaran;
+use App\Models\Transaksi;
 use App\Repositories\Contracts\PembayaranRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -144,6 +145,71 @@ class PembayaranService
 
             $this->pembayaranRepository->delete($pembayaran);
         });
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    public function calculateSaldoNasabah(int $nasabahId): array
+    {
+        $totalSetoran = (float) Transaksi::query()
+            ->where('nasabah_id', $nasabahId)
+            ->sum('total_harga');
+
+        $withdrawQuery = Pembayaran::query()
+            ->whereHas('transaksi', fn($query) => $query->where('nasabah_id', $nasabahId));
+
+        $totalBerhasil = (float) (clone $withdrawQuery)
+            ->where('status', 'berhasil')
+            ->sum('jumlah');
+
+        $totalPending = (float) (clone $withdrawQuery)
+            ->whereIn('status', ['menunggu', 'diverifikasi', 'diproses'])
+            ->sum('jumlah');
+
+        $available = max(0.0, $totalSetoran - $totalBerhasil - $totalPending);
+
+        return [
+            'total_setoran' => $totalSetoran,
+            'total_pencairan_berhasil' => $totalBerhasil,
+            'total_pencairan_pending' => $totalPending,
+            'saldo_tersedia' => $available,
+        ];
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    public function calculateSaldoNasabahForUpdate(int $nasabahId): array
+    {
+        $transaksiRows = Transaksi::query()
+            ->where('nasabah_id', $nasabahId)
+            ->lockForUpdate()
+            ->get(['id', 'total_harga']);
+
+        $totalSetoran = (float) $transaksiRows->sum('total_harga');
+
+        $withdrawRows = Pembayaran::query()
+            ->whereHas('transaksi', fn($query) => $query->where('nasabah_id', $nasabahId))
+            ->lockForUpdate()
+            ->get(['jumlah', 'status']);
+
+        $totalBerhasil = (float) $withdrawRows
+            ->where('status', 'berhasil')
+            ->sum('jumlah');
+
+        $totalPending = (float) $withdrawRows
+            ->whereIn('status', ['menunggu', 'diverifikasi', 'diproses'])
+            ->sum('jumlah');
+
+        $available = max(0.0, $totalSetoran - $totalBerhasil - $totalPending);
+
+        return [
+            'total_setoran' => $totalSetoran,
+            'total_pencairan_berhasil' => $totalBerhasil,
+            'total_pencairan_pending' => $totalPending,
+            'saldo_tersedia' => $available,
+        ];
     }
 
     public function updateStatusFromPayoutWebhook(string $referenceId, string $payoutStatus, array $payload = []): bool

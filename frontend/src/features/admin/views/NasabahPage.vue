@@ -10,6 +10,9 @@ type Nasabah = {
   nama: string;
   alamat: string | null;
   no_hp: string | null;
+  payout_channel?: string | null;
+  account_number?: string | null;
+  account_holder_name?: string | null;
   user?: { email?: string };
 };
 
@@ -32,6 +35,9 @@ const form = reactive({
   nama: "",
   alamat: "",
   no_hp: "",
+  payout_channel: "",
+  account_number: "",
+  account_holder_name: "",
   email: "",
   password: "",
   password_confirmation: "",
@@ -48,6 +54,9 @@ function startEdit(item: Nasabah) {
   form.nama = item.nama ?? "";
   form.alamat = item.alamat ?? "";
   form.no_hp = item.no_hp ?? "";
+  form.payout_channel = item.payout_channel ?? "";
+  form.account_number = item.account_number ?? "";
+  form.account_holder_name = item.account_holder_name ?? "";
   form.email = item.user?.email ?? "";
   form.password = "";
   form.password_confirmation = "";
@@ -61,6 +70,9 @@ function resetForm() {
   form.nama = "";
   form.alamat = "";
   form.no_hp = "";
+  form.payout_channel = "";
+  form.account_number = "";
+  form.account_holder_name = "";
   form.email = "";
   form.password = "";
   form.password_confirmation = "";
@@ -103,6 +115,9 @@ async function save() {
     nama: form.nama,
     alamat: form.alamat,
     no_hp: form.no_hp,
+    payout_channel: form.payout_channel,
+    account_number: form.account_number,
+    account_holder_name: form.account_holder_name,
     email: form.email,
   };
   if (form.password) {
@@ -185,6 +200,57 @@ onMounted(loadNasabah);
           />
           <p v-if="formErrors.no_hp" class="mt-1 text-xs text-rose-600">
             {{ formErrors.no_hp }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Channel Payout</label
+          >
+          <input
+            v-model="form.payout_channel"
+            placeholder="Contoh: ID_BCA / ID_DANA"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p
+            v-if="formErrors.payout_channel"
+            class="mt-1 text-xs text-rose-600"
+          >
+            {{ formErrors.payout_channel }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Nomor Rekening/E-Wallet</label
+          >
+          <input
+            v-model="form.account_number"
+            placeholder="Nomor rekening atau no HP e-wallet"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p
+            v-if="formErrors.account_number"
+            class="mt-1 text-xs text-rose-600"
+          >
+            {{ formErrors.account_number }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-slate-700"
+            >Nama Pemilik Rekening</label
+          >
+          <input
+            v-model="form.account_holder_name"
+            placeholder="Nama pemilik rekening"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3"
+          />
+          <p
+            v-if="formErrors.account_holder_name"
+            class="mt-1 text-xs text-rose-600"
+          >
+            {{ formErrors.account_holder_name }}
           </p>
         </div>
 
@@ -287,6 +353,7 @@ onMounted(loadNasabah);
             <th class="px-5 py-4">Nama</th>
             <th class="px-5 py-4">Email</th>
             <th class="px-5 py-4">No HP</th>
+            <th class="px-5 py-4">Rekening/E-Wallet</th>
             <th class="px-5 py-4">Aksi</th>
           </tr>
         </thead>
@@ -299,6 +366,9 @@ onMounted(loadNasabah);
             <td class="px-5 py-4">{{ item.nama }}</td>
             <td class="px-5 py-4">{{ item.user?.email || "-" }}</td>
             <td class="px-5 py-4">{{ item.no_hp || "-" }}</td>
+            <td class="px-5 py-4">
+              {{ item.account_number || "-" }}
+            </td>
             <td class="px-5 py-4">
               <div class="flex gap-2">
                 <button
@@ -325,7 +395,7 @@ onMounted(loadNasabah);
             </td>
           </tr>
           <tr v-if="rows.length === 0" class="border-t border-slate-200">
-            <td colspan="4" class="px-5 py-4">
+            <td colspan="5" class="px-5 py-4">
               <div
                 class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
                 role="alert"

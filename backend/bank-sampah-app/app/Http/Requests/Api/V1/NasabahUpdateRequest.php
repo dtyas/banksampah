@@ -23,6 +23,9 @@ class NasabahUpdateRequest extends FormRequest
             'nama' => 'required|string|max:255',
             'alamat' => 'nullable|string',
             'no_hp' => 'nullable|string|max:20',
+            'payout_channel' => 'nullable|string|max:50',
+            'account_number' => 'nullable|string|max:100',
+            'account_holder_name' => 'nullable|string|max:100',
             'email' => [
                 'nullable',
                 'email',

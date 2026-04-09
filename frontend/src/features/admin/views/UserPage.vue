@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import api from "../../../api/http";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
@@ -56,6 +56,20 @@ const form = reactive({
   operational_access: [] as string[],
 });
 
+const isNasabahRole = computed(() => form.role === "nasabah");
+const NASABAH_MENU = ["Pencairan Saldo"];
+const NASABAH_OPS = ["Ajukan Pencairan Saldo"];
+
+watch(
+  () => form.role,
+  (role) => {
+    if (role === "nasabah") {
+      form.menu_access = [...NASABAH_MENU];
+      form.operational_access = [...NASABAH_OPS];
+    }
+  },
+);
+
 async function loadUsers() {
   const response = await api.get("/users");
   rows.value = response.data?.data?.data ?? response.data?.data ?? [];
@@ -106,10 +120,16 @@ function applyValidationErrors(error: unknown) {
 }
 
 function toggleAllMenuAccess(checked: boolean) {
+  if (isNasabahRole.value) {
+    return;
+  }
   form.menu_access = checked ? [...MENU_OPTIONS] : [];
 }
 
 function toggleAllOperationalAccess(checked: boolean) {
+  if (isNasabahRole.value) {
+    return;
+  }
   form.operational_access = checked ? [...OPERATIONAL_OPTIONS] : [];
 }
 
@@ -309,12 +329,14 @@ onMounted(loadUsers);
             <button
               class="rounded-lg bg-emerald-100 px-2 py-1 text-emerald-700"
               @click="toggleAllMenuAccess(true)"
+              :disabled="isNasabahRole"
             >
               Check all
             </button>
             <button
               class="rounded-lg bg-slate-100 px-2 py-1 text-slate-700"
               @click="toggleAllMenuAccess(false)"
+              :disabled="isNasabahRole"
             >
               Uncheck all
             </button>
@@ -331,10 +353,14 @@ onMounted(loadUsers);
               type="checkbox"
               :value="menu"
               class="h-4 w-4 rounded border-slate-300"
+              :disabled="isNasabahRole"
             />
             <span>{{ menu }}</span>
           </label>
         </div>
+        <p v-if="isNasabahRole" class="mt-2 text-xs text-slate-500">
+          Akses nasabah otomatis disesuaikan.
+        </p>
         <p v-if="formErrors.menu_access" class="mt-2 text-xs text-rose-600">
           {{ formErrors.menu_access }}
         </p>
@@ -347,12 +373,14 @@ onMounted(loadUsers);
             <button
               class="rounded-lg bg-emerald-100 px-2 py-1 text-emerald-700"
               @click="toggleAllOperationalAccess(true)"
+              :disabled="isNasabahRole"
             >
               Check all
             </button>
             <button
               class="rounded-lg bg-slate-100 px-2 py-1 text-slate-700"
               @click="toggleAllOperationalAccess(false)"
+              :disabled="isNasabahRole"
             >
               Uncheck all
             </button>
@@ -369,10 +397,14 @@ onMounted(loadUsers);
               type="checkbox"
               :value="access"
               class="h-4 w-4 rounded border-slate-300"
+              :disabled="isNasabahRole"
             />
             <span>{{ access }}</span>
           </label>
         </div>
+        <p v-if="isNasabahRole" class="mt-2 text-xs text-slate-500">
+          Operational access nasabah otomatis disesuaikan.
+        </p>
         <p
           v-if="formErrors.operational_access"
           class="mt-2 text-xs text-rose-600"
