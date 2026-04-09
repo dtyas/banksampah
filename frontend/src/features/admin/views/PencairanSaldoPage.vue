@@ -70,6 +70,15 @@ const accountForm = ref({
   account_number: "",
   account_holder_name: "",
 });
+const channelOptions = [
+  "ID_BCA",
+  "ID_BNI",
+  "ID_BRI",
+  "ID_MANDIRI",
+  "ID_OVO",
+  "ID_DANA",
+  "ID_GOPAY",
+];
 let refreshTimer: number | null = null;
 
 function isDisbursementMethod(metode?: string): boolean {
@@ -340,11 +349,19 @@ onUnmounted(() => {
           <label class="mb-2 block text-sm font-medium text-slate-700">
             Channel
           </label>
-          <input
+          <select
             v-model="accountForm.payout_channel"
-            placeholder="Contoh: ID_BCA"
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm"
-          />
+          >
+            <option value="">Pilih channel</option>
+            <option
+              v-for="option in channelOptions"
+              :key="option"
+              :value="option"
+            >
+              {{ option }}
+            </option>
+          </select>
         </div>
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">

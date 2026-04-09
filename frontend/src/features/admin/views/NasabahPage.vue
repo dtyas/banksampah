@@ -42,6 +42,15 @@ const form = reactive({
   password: "",
   password_confirmation: "",
 });
+const channelOptions = [
+  "ID_BCA",
+  "ID_BNI",
+  "ID_BRI",
+  "ID_MANDIRI",
+  "ID_OVO",
+  "ID_DANA",
+  "ID_GOPAY",
+];
 
 async function loadNasabah() {
   const response = await api.get("/nasabah");
@@ -207,11 +216,19 @@ onMounted(loadNasabah);
           <label class="mb-2 block text-sm font-medium text-slate-700"
             >Channel Payout</label
           >
-          <input
+          <select
             v-model="form.payout_channel"
-            placeholder="Contoh: ID_BCA / ID_DANA"
             class="w-full rounded-xl border border-slate-300 px-4 py-3"
-          />
+          >
+            <option value="">Pilih channel</option>
+            <option
+              v-for="option in channelOptions"
+              :key="option"
+              :value="option"
+            >
+              {{ option }}
+            </option>
+          </select>
           <p
             v-if="formErrors.payout_channel"
             class="mt-1 text-xs text-rose-600"
