@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { canAccessRoute, getFirstAccessibleRoute } from '../features/auth/access-control';
-import LoginPage from '../features/legacy/LoginPage.vue';
+import LoginView from '../features/auth/views/LoginView.vue';
 import AdminShell from '../features/legacy/AdminShell.vue';
 import DashboardPage from '../features/admin/views/DashboardPage.vue';
 import NasabahPage from '../features/admin/views/NasabahPage.vue';
@@ -17,7 +17,7 @@ const routes = [
     {
         path: '/login',
         name: 'login',
-        component: LoginPage,
+        component: LoginView,
         meta: { guest: true },
     },
     {
