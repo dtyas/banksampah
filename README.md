@@ -301,6 +301,29 @@ Catatan:
 - Autentikasi memakai Basic Auth dengan secret key (username), password kosong.
 - Webhook URL diset ke `POST /api/v1/webhooks/xendit/payouts` di dashboard Xendit.
 
+### Setup Webhook Xendit (Payout Status)
+
+1. Buka dashboard Xendit dan masuk ke menu **Callbacks/Webhooks**.
+2. Tambahkan webhook untuk **Payouts** dengan URL:
+   - Produksi: `https://YOUR_DOMAIN/api/v1/webhooks/xendit/payouts`
+   - Lokal (uji coba): gunakan tunnel seperti `https://YOUR_SUBDOMAIN.ngrok.io/api/v1/webhooks/xendit/payouts`
+3. Simpan **Callback Token** dari Xendit dan set ke env:
+   - `XENDIT_CALLBACK_TOKEN=...`
+4. Pastikan server bisa menerima request dari Xendit (public URL / tunnel aktif).
+
+Alur update status:
+
+- Admin/petugas verifikasi pencairan → status `diverifikasi`.
+- Sistem memicu event `PembayaranVerified` dan listener akan enqueue job payout.
+- Job memanggil API Xendit `/v2/payouts`.
+- Xendit mengirim webhook ke endpoint di atas.
+- Webhook memperbarui status ke `berhasil`/`ditolak`.
+
+Catatan operasional:
+
+- Jalankan worker queue agar payout segera diproses: `php artisan queue:work`.
+- Log ada di `storage/logs/laravel.log` (lihat `Payout queued` dan `Payout dispatched`).
+
 ## Unit Test & Cara Menjalankan
 
 Unit test utama mencakup:

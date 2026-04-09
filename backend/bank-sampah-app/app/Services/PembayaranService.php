@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
+use App\Events\PembayaranVerified;
 use App\Repositories\Contracts\PembayaranRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PembayaranService
 {
@@ -78,16 +80,23 @@ class PembayaranService
 
             $updated = $this->pembayaranRepository->update($pembayaran, $data)->load('transaksi.nasabah');
 
-            $payoutMeta = null;
-            if ($this->isPayoutStatusTransition($beforeStatus, $updated->status, $updated->metode)) {
-                $payoutMeta = $this->requestPayout($updated);
-            }
-
             $actorUserId = $actorUserIdFromPayload !== null
                 ? (int) $actorUserIdFromPayload
                 : ($updated->transaksi?->user_id !== null
                     ? (int) $updated->transaksi->user_id
                     : null);
+
+            $payoutMeta = null;
+            if ($this->isPayoutStatusTransition($beforeStatus, $updated->status, $updated->metode)) {
+                $payoutMeta = ['mode' => 'event'];
+                $payoutId = (int) $updated->id;
+                $queuedBy = $actorUserId;
+                Log::info('Payout event scheduled', ['pembayaran_id' => $payoutId, 'queued_by' => $queuedBy]);
+
+                DB::afterCommit(function () use ($payoutId, $queuedBy): void {
+                    event(new PembayaranVerified($payoutId, $queuedBy));
+                });
+            }
 
             $this->auditTrailService->record(
                 action: 'pembayaran.updated',
@@ -114,8 +123,149 @@ class PembayaranService
                 ],
             );
 
+            Log::info('Pembayaran status updated', [
+                'pembayaran_id' => $updated->id,
+                'before_status' => $beforeStatus,
+                'after_status' => $updated->status,
+                'actor_user_id' => $actorUserId,
+            ]);
+
             return $updated;
         });
+    }
+
+    public function processPayoutForPembayaran(int $pembayaranId, ?int $actorUserId = null): void
+    {
+        $pembayaran = Pembayaran::query()->with('transaksi.nasabah')->find($pembayaranId);
+        if (! $pembayaran) {
+            Log::warning('Payout skipped, pembayaran not found', ['pembayaran_id' => $pembayaranId]);
+
+            return;
+        }
+
+        $nasabah = $pembayaran->transaksi?->nasabah;
+        if (! $nasabah) {
+            $this->auditTrailService->record(
+                action: 'pembayaran.payout_failed',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'error' => 'Nasabah tidak ditemukan untuk payout.',
+                ],
+            );
+
+            Log::error('Payout dispatch failed: nasabah missing', [
+                'pembayaran_id' => $pembayaran->id,
+            ]);
+
+            return;
+        }
+
+        $accountNumber = (string) ($nasabah->account_number ?? '');
+        if ($accountNumber === '') {
+            $accountNumber = preg_replace('/\D+/', '', (string) ($nasabah->no_hp ?? '')) ?: '';
+        }
+        $accountHolderName = trim((string) ($nasabah->account_holder_name ?? ''));
+        if ($accountHolderName === '') {
+            $accountHolderName = trim((string) ($nasabah->nama ?? ''));
+        }
+
+        if ($accountNumber === '' || $accountHolderName === '') {
+            $this->auditTrailService->record(
+                action: 'pembayaran.payout_failed',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'error' => 'Data rekening nasabah belum lengkap.',
+                ],
+            );
+
+            Log::error('Payout dispatch failed: missing account data', [
+                'pembayaran_id' => $pembayaran->id,
+                'account_number' => $accountNumber,
+                'account_holder_name' => $accountHolderName,
+            ]);
+
+            return;
+        }
+
+        try {
+            $response = $this->requestPayout($pembayaran);
+            if (($response['mode'] ?? null) === 'sandbox-skip') {
+                $this->auditTrailService->record(
+                    action: 'pembayaran.payout_skipped',
+                    entityType: 'pembayaran',
+                    entityId: (int) $pembayaran->id,
+                    actorUserId: $actorUserId,
+                    referenceType: 'transaksi',
+                    referenceId: (int) $pembayaran->transaksi_id,
+                    amount: (float) $pembayaran->jumlah,
+                    meta: [
+                        'status' => $pembayaran->status,
+                        'metode' => $pembayaran->metode,
+                        'payout' => $response,
+                    ],
+                );
+
+                Log::warning('Payout skipped (sandbox)', [
+                    'pembayaran_id' => $pembayaran->id,
+                    'reason' => $response['reason'] ?? null,
+                ]);
+
+                return;
+            }
+            $this->auditTrailService->record(
+                action: 'pembayaran.payout_dispatched',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'payout' => $response,
+                ],
+            );
+
+            Log::info('Payout dispatched', [
+                'pembayaran_id' => $pembayaran->id,
+                'reference' => $response['external_id'] ?? null,
+            ]);
+        } catch (\Throwable $exception) {
+            $this->auditTrailService->record(
+                action: 'pembayaran.payout_failed',
+                entityType: 'pembayaran',
+                entityId: (int) $pembayaran->id,
+                actorUserId: $actorUserId,
+                referenceType: 'transaksi',
+                referenceId: (int) $pembayaran->transaksi_id,
+                amount: (float) $pembayaran->jumlah,
+                meta: [
+                    'status' => $pembayaran->status,
+                    'metode' => $pembayaran->metode,
+                    'error' => $exception->getMessage(),
+                ],
+            );
+
+            Log::error('Payout dispatch failed', [
+                'pembayaran_id' => $pembayaran->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function delete(int $id): void
@@ -291,11 +441,16 @@ class PembayaranService
 
     private function isPayoutStatusTransition(string $beforeStatus, string $afterStatus, ?string $metode): bool
     {
-        if ($beforeStatus === 'diproses' || $afterStatus !== 'diproses') {
+        if ($beforeStatus === 'diverifikasi' || $afterStatus !== 'diverifikasi') {
             return false;
         }
 
         $metodeValue = strtolower(trim((string) $metode));
+        $metodeUpper = strtoupper(trim((string) $metode));
+
+        if ($metodeUpper !== '' && str_starts_with($metodeUpper, 'ID_')) {
+            return true;
+        }
 
         return str_contains($metodeValue, 'wallet')
             || str_contains($metodeValue, 'transfer')

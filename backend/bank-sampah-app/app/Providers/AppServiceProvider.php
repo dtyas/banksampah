@@ -14,6 +14,9 @@ use App\Repositories\Eloquent\OrderRepository;
 use App\Repositories\Eloquent\PembayaranRepository;
 use App\Repositories\Eloquent\SampahRepository;
 use App\Repositories\Eloquent\TransaksiRepository;
+use App\Events\PembayaranVerified;
+use App\Listeners\QueuePayoutForPembayaran;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -37,6 +40,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(PembayaranVerified::class, QueuePayoutForPembayaran::class);
+
         Gate::before(function ($user, string $ability): ?bool {
             return $user->role === 'super_admin' ? true : null;
         });
