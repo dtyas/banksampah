@@ -29,8 +29,12 @@ const rows = ref<Pembayaran[]>([]);
 const transaksiOptions = ref<TransaksiOption[]>([]);
 const authStore = useAuthStore();
 const canCreate = computed(() => canDoOperation(authStore.user, "create"));
+const canVerifyPayment = computed(() =>
+  canDoOperation(authStore.user, "verifyPayment"),
+);
 const showForm = ref(false);
 const saving = ref(false);
+const processingId = ref<number | null>(null);
 const form = ref({
   transaksi_id: "",
   jumlah: "",
@@ -110,6 +114,26 @@ async function submitForm() {
     await loadPembayaran();
   } finally {
     saving.value = false;
+  }
+}
+
+async function updateStatus(item: Pembayaran, status: string) {
+  if (!canVerifyPayment.value) {
+    return;
+  }
+
+  processingId.value = item.id;
+  try {
+    await api.put(`/pembayaran/${item.id}`, {
+      transaksi_id: item.transaksi_id,
+      jumlah: item.jumlah,
+      metode: item.metode,
+      status,
+      tanggal: item.tanggal,
+    });
+    await loadPembayaran();
+  } finally {
+    processingId.value = null;
   }
 }
 </script>
@@ -232,6 +256,7 @@ async function submitForm() {
             <th class="px-5 py-4">Verifier</th>
             <th class="px-5 py-4">Waktu Verifikasi</th>
             <th class="px-5 py-4">Tanggal</th>
+            <th class="px-5 py-4">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -256,6 +281,29 @@ async function submitForm() {
             <td class="px-5 py-4">{{ item.verifier?.nama || "-" }}</td>
             <td class="px-5 py-4">{{ formatDate(item.verified_at) }}</td>
             <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
+            <td class="px-5 py-4">
+              <button
+                v-if="item.status === 'menunggu' && canVerifyPayment"
+                class="rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                :disabled="processingId === item.id"
+                @click="updateStatus(item, 'diverifikasi')"
+              >
+                {{ processingId === item.id ? "Memproses..." : "Verifikasi" }}
+              </button>
+              <button
+                v-if="
+                  (item.status === 'menunggu' ||
+                    item.status === 'diverifikasi') &&
+                  canVerifyPayment
+                "
+                class="ml-2 rounded-lg bg-rose-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                :disabled="processingId === item.id"
+                @click="updateStatus(item, 'ditolak')"
+              >
+                {{ processingId === item.id ? "Memproses..." : "Tolak" }}
+              </button>
+              <span v-else class="text-xs text-slate-500">-</span>
+            </td>
           </tr>
           <tr v-if="rows.length === 0" class="border-t border-slate-200">
             <td colspan="7" class="px-5 py-4">

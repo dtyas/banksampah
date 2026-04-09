@@ -26,6 +26,8 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:menu.dashboard']);
         Route::get('nasabah/me/ledger', [NasabahController::class, 'ledger'])
             ->middleware(['permission:menu.pencairan_saldo']);
+        Route::get('nasabah/me/transaksi', [NasabahController::class, 'transaksiMe'])
+            ->middleware(['permission:menu.pencairan_saldo']);
         Route::put('nasabah/me/payout', [NasabahController::class, 'updatePayoutAccount'])
             ->middleware(['permission:menu.pencairan_saldo']);
         Route::post('pencairan-saldo/request', [PembayaranController::class, 'requestPencairanSaldo'])

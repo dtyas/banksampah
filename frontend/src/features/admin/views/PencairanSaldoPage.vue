@@ -156,17 +156,24 @@ async function loadLedger() {
       account_number: ledger.value?.nasabah?.account_number || "",
       account_holder_name: ledger.value?.nasabah?.account_holder_name || "",
     };
-    transaksiOptions.value = (ledger.value?.transaksi_terakhir || []).map(
-      (item) => ({
-        id: item.id,
-        nasabah: { nama: authStore.user?.nama || "Nasabah" },
-      }),
-    );
   } catch (error) {
     ledgerError.value = "Ledger nasabah tidak tersedia";
   } finally {
     ledgerLoading.value = false;
   }
+}
+
+async function loadTransaksiNasabah() {
+  if (!isNasabah.value) {
+    return;
+  }
+
+  const response = await api.get("/nasabah/me/transaksi");
+  const data = response.data?.data ?? [];
+  transaksiOptions.value = (data as Array<{ id: number }>).map((item) => ({
+    id: item.id,
+    nasabah: { nama: authStore.user?.nama || "Nasabah" },
+  }));
 }
 
 async function loadTransaksi() {
@@ -260,9 +267,30 @@ async function ajukanDisbursement(item: PencairanRow) {
   }
 }
 
+async function updateStatus(item: PencairanRow, status: string) {
+  if (!canApproveWithdraw.value) {
+    return;
+  }
+
+  processingId.value = item.id;
+  try {
+    await api.put(`/pembayaran/${item.id}`, {
+      transaksi_id: item.transaksi_id,
+      jumlah: item.jumlah,
+      metode: item.metode,
+      status,
+      tanggal: item.tanggal,
+    });
+
+    await loadData();
+  } finally {
+    processingId.value = null;
+  }
+}
+
 onMounted(async () => {
   if (isNasabah.value) {
-    await Promise.all([loadLedger(), loadTransaksi()]);
+    await Promise.all([loadLedger(), loadTransaksiNasabah()]);
   } else {
     await Promise.all([loadData(), loadTransaksi()]);
   }
@@ -567,8 +595,16 @@ onUnmounted(() => {
             <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
             <td class="px-5 py-4">
               <button
+                v-if="item.status === 'menunggu' && canApproveWithdraw"
+                class="rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                :disabled="processingId === item.id"
+                @click="updateStatus(item, 'diverifikasi')"
+              >
+                {{ processingId === item.id ? "Memproses..." : "Verifikasi" }}
+              </button>
+              <button
                 v-if="item.status === 'diverifikasi' && canApproveWithdraw"
-                class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                class="ml-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
                 :disabled="processingId === item.id"
                 @click="ajukanDisbursement(item)"
               >
@@ -577,6 +613,18 @@ onUnmounted(() => {
                     ? "Memproses..."
                     : "Ajukan Disbursement"
                 }}
+              </button>
+              <button
+                v-if="
+                  (item.status === 'menunggu' ||
+                    item.status === 'diverifikasi') &&
+                  canApproveWithdraw
+                "
+                class="ml-2 rounded-lg bg-rose-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                :disabled="processingId === item.id"
+                @click="updateStatus(item, 'ditolak')"
+              >
+                {{ processingId === item.id ? "Memproses..." : "Tolak" }}
               </button>
               <span v-else class="text-xs text-slate-500">-</span>
             </td>

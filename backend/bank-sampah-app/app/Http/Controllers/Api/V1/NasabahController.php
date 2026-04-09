@@ -190,4 +190,23 @@ class NasabahController extends ApiController
 
         return $this->successResponse('Rekening/ewallet berhasil diperbarui', new NasabahResource($nasabah->refresh()));
     }
+
+    public function transaksiMe(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user || $user->role !== 'nasabah') {
+            return $this->errorResponse('Akses hanya untuk nasabah', null, 403);
+        }
+
+        $nasabah = Nasabah::query()->where('user_id', $user->id)->first();
+        if (! $nasabah) {
+            return $this->errorResponse('Profil nasabah tidak ditemukan', null, 404);
+        }
+
+        $transaksi = $nasabah->transaksi()
+            ->latest('tanggal')
+            ->get(['id', 'tanggal', 'total_harga', 'total_berat']);
+
+        return $this->successResponse('Transaksi nasabah berhasil diambil', $transaksi);
+    }
 }
