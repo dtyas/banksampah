@@ -26,7 +26,7 @@ class XenditService
      * @param string $externalId ID unik transaksi dari database lokal (ID Pencairan).
      * @param float $amount Nominal saldo yang akan dicairkan.
      * @param string $channelCode Kode bank atau provider e-wallet (OVO, DANA, dll).
-     * @param string $accountNumber Nomor rekening atau nomor HP tujuan.
+     * @param string $accountNumber Nomor rekening atau nomor HP tujuan. (diinput admin/petugas)
      * @return array Response dari API Xendit berupa status dan ID referensi.
      * @throws \Exception Jika terjadi kesalahan koneksi atau saldo Xendit tidak cukup.
      */

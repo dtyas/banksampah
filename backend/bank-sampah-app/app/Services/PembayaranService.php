@@ -215,9 +215,9 @@ class PembayaranService
     private function mapDisbursementStatus(string $status): ?string
     {
         return match (strtoupper(trim($status))) {
-            'COMPLETED' => 'berhasil',
-            'FAILED', 'CANCELLED' => 'ditolak',
-            'PENDING' => 'diproses',
+            'COMPLETED', 'SUCCEEDED', 'SUCCESS' => 'berhasil',
+            'FAILED', 'CANCELLED', 'CANCELED' => 'ditolak',
+            'PENDING', 'PROCESSING' => 'diproses',
             default => null,
         };
     }
