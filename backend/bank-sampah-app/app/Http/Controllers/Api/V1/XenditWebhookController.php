@@ -10,8 +10,7 @@ use Illuminate\Http\Request;
 /**
  * Class XenditWebhookController
  *
- * Endpoint publik untuk menerima notifikasi otomatis (callback) dari Xendit.
- * Mengikuti alur asinkronus: Xendit memproses transfer, lalu mengabari sistem ini.
+ * Endpoint publik untuk menerima notifikasi payout dari Xendit.
  */
 class XenditWebhookController extends ApiController
 {
@@ -21,14 +20,10 @@ class XenditWebhookController extends ApiController
     ) {}
 
     /**
-     * Handle callback untuk status pencairan dana (Disbursement).
+     * Handle webhook payout dari Xendit.
      */
-    public function handleDisbursementCallback(Request $request): JsonResponse
+    public function handlePayoutWebhook(Request $request): JsonResponse
     {
-        if ($this->matchesDisbursementTestPayload($request->all())) {
-            return $this->successResponse('Webhook received (test payload)');
-        }
-
         $callbackToken = (string) $request->header('x-callback-token', '');
 
         if (! $this->xenditService->validateWebhookToken($callbackToken)) {
@@ -36,13 +31,17 @@ class XenditWebhookController extends ApiController
         }
 
         $validated = $request->validate([
-            'external_id' => 'required|string',
-            'status' => 'required|string',
+            'event' => 'required|string',
+            'data.reference_id' => 'required|string',
+            'data.status' => 'nullable|string',
         ]);
 
-        $result = $this->pembayaranService->updateStatusFromDisbursementCallback(
-            externalId: $validated['external_id'],
-            disbursementStatus: $validated['status'],
+        $referenceId = (string) data_get($validated, 'data.reference_id');
+        $status = (string) (data_get($validated, 'data.status') ?: $this->mapEventToStatus($validated['event']));
+
+        $result = $this->pembayaranService->updateStatusFromPayoutWebhook(
+            referenceId: $referenceId,
+            payoutStatus: $status,
             payload: $request->all(),
         );
 
@@ -53,50 +52,13 @@ class XenditWebhookController extends ApiController
         return $this->successResponse('Webhook received');
     }
 
-    private function matchesDisbursementTestPayload(array $payload): bool
+    private function mapEventToStatus(string $event): string
     {
-        $expected = [
-            'id' => '57e214ba82b034c325e84d6e',
-            'user_id' => '57c5aa7a36e3b6a709b6e148',
-            'external_id' => 'disbursement_123124123',
-            'amount' => 150000,
-            'bank_code' => 'BCA',
-            'account_holder_name' => 'LUCKY BUSINESS',
-            'disbursement_description' => 'Test disbursement',
-            'failure_code' => 'INVALID_DESTINATION',
-            'is_instant' => false,
-            'status' => 'FAILED',
-            'updated' => '2016-10-10T08:15:03.404Z',
-            'created' => '2016-10-10T08:15:03.404Z',
-            'email_to' => [
-                'somebody@email.com',
-            ],
-            'email_cc' => [
-                'somebody.else@gmail.com',
-            ],
-            'email_bcc' => [
-                'someone@mail.co',
-            ],
-        ];
-
-        return $this->normalizePayload($payload) === $this->normalizePayload($expected);
-    }
-
-    private function normalizePayload(array $payload): string
-    {
-        $this->ksortRecursive($payload);
-
-        return (string) json_encode($payload, JSON_UNESCAPED_SLASHES);
-    }
-
-    private function ksortRecursive(array &$payload): void
-    {
-        foreach ($payload as &$value) {
-            if (is_array($value)) {
-                $this->ksortRecursive($value);
-            }
-        }
-
-        ksort($payload);
+        return match ($event) {
+            'payout.succeeded' => 'SUCCEEDED',
+            'payout.failed' => 'FAILED',
+            'payout.reversed' => 'REVERSED',
+            default => 'REQUESTED',
+        };
     }
 }

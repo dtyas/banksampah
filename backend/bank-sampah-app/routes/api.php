@@ -9,19 +9,27 @@ use App\Http\Controllers\Api\V1\PembayaranController;
 use App\Http\Controllers\Api\V1\SampahController;
 use App\Http\Controllers\Api\V1\TransaksiController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\XenditController;
 use App\Http\Controllers\Api\V1\XenditWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login']);
-    Route::post('webhooks/xendit/disbursement', [XenditWebhookController::class, 'handleDisbursementCallback']);
+    Route::post('webhooks/xendit/payouts', [XenditWebhookController::class, 'handlePayoutWebhook']);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('orders/store', [OrderController::class, 'store'])
             ->middleware(['permission:menu.transaksi', 'permission:operational.tambah_data']);
-
+        Route::get('xendit/balance', [XenditController::class, 'balance'])
+            ->middleware(['permission:menu.dashboard']);
+        Route::get('nasabah/me/ledger', [NasabahController::class, 'ledger'])
+            ->middleware(['permission:menu.pencairan_saldo']);
+        Route::put('nasabah/me/payout', [NasabahController::class, 'updatePayoutAccount'])
+            ->middleware(['permission:menu.pencairan_saldo']);
+        Route::post('pencairan-saldo/request', [PembayaranController::class, 'requestPencairanSaldo'])
+            ->middleware(['permission:menu.pencairan_saldo', 'permission:operational.ajukan_pencairan_saldo']);
         Route::apiResource('nasabah', NasabahController::class)
             ->middlewareFor(['index', 'show'], 'permission:menu.nasabah')
             ->middlewareFor('store', ['permission:menu.nasabah', 'permission:operational.tambah_data'])

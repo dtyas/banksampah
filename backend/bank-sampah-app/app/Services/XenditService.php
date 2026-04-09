@@ -2,47 +2,90 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Arr;
 
 /**
  * Class XenditService
  *
  * Bertanggung jawab sebagai abstraksi pihak ketiga untuk layanan Xendit.
- * Menangani komunikasi API untuk proses Disbursement (Pencairan Dana)
- * sesuai dengan kebutuhan fitur pencairan saldo nasabah pada Proposal.
+ * Menangani komunikasi API untuk payout dan saldo Xendit.
  */
 class XenditService
 {
     private string $baseUrl;
 
-    public function __construct()
+    public function __construct(private readonly XenditAuthService $authService)
     {
         $this->baseUrl = rtrim((string) config('services.xendit.base_url', 'https://api.xendit.co'), '/');
     }
 
     /**
-     * Mengirim instruksi pencairan dana ke akun E-Wallet atau Bank Nasabah.
+     * Mengirim instruksi payout ke Xendit (API v2).
      *
-     * @param string $externalId ID unik transaksi dari database lokal (ID Pencairan).
-     * @param float $amount Nominal saldo yang akan dicairkan.
-     * @param string $channelCode Kode bank atau provider e-wallet (OVO, DANA, dll).
-     * @param string $accountNumber Nomor rekening atau nomor HP tujuan. (diinput admin/petugas)
-     * @return array Response dari API Xendit berupa status dan ID referensi.
-     * @throws \Exception Jika terjadi kesalahan koneksi atau saldo Xendit tidak cukup.
+     * @param string $referenceId ID referensi payout (unik).
+     * @param string $channelCode Kode channel payout (contoh: ID_BCA).
+     * @param string $accountNumber Nomor rekening/HP tujuan.
+     * @param string $accountHolderName Nama pemilik rekening.
+     * @param float $amount Nominal payout.
+     * @param string $currency Kode mata uang ISO 4217.
+     * @param string|null $description Deskripsi payout.
+     * @param string|null $idempotencyKey Kunci untuk mencegah duplikasi.
+     * @return array
+     * @throws \Exception
      */
-    public function sendDisbursement(string $externalId, float $amount, string $channelCode, string $accountNumber): array
-    {
-        $response = Http::withBasicAuth(config('services.xendit.api_key'), '')
-            ->post($this->baseUrl . '/disbursements', [
-                'external_id' => $externalId,
-                'amount' => $amount,
+    public function createPayout(
+        string $referenceId,
+        string $channelCode,
+        string $accountNumber,
+        string $accountHolderName,
+        float $amount,
+        string $currency = 'IDR',
+        ?string $description = null,
+        ?string $idempotencyKey = null,
+    ): array {
+        $idempotencyKey = $idempotencyKey ?: $referenceId;
+
+        $response = $this->authService
+            ->request()
+            ->withHeaders([
+                'Idempotency-key' => $idempotencyKey,
+            ])
+            ->post($this->baseUrl . '/v2/payouts', [
+                'reference_id' => $referenceId,
                 'channel_code' => $channelCode,
-                'account_number' => $accountNumber,
-                'description' => 'Pencairan saldo nasabah',
+                'channel_properties' => [
+                    'account_number' => $accountNumber,
+                    'account_holder_name' => $accountHolderName,
+                ],
+                'amount' => $amount,
+                'description' => $description ?? 'Pencairan saldo nasabah',
+                'currency' => $currency,
             ]);
 
         if (! $response->successful()) {
-            throw new \Exception('Gagal mengirim disbursement ke Xendit.');
+            throw new \Exception('Gagal mengirim payout ke Xendit.');
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Mengambil saldo Xendit.
+     *
+     * @param array<string, string|null> $query
+     * @return array
+     * @throws \Exception
+     */
+    public function getBalance(array $query = []): array
+    {
+        $query = Arr::where($query, fn($value) => $value !== null && $value !== '');
+
+        $response = $this->authService
+            ->request()
+            ->get($this->baseUrl . '/balance', $query);
+
+        if (! $response->successful()) {
+            throw new \Exception('Gagal mengambil saldo Xendit.');
         }
 
         return $response->json();
@@ -68,14 +111,11 @@ class XenditService
      */
     public function getAccountBalance(): float
     {
-        $response = Http::withBasicAuth(config('services.xendit.api_key'), '')
-            ->get($this->baseUrl . '/balance');
-
-        if (! $response->successful()) {
+        try {
+            $payload = $this->getBalance();
+        } catch (\Exception) {
             return 0.0;
         }
-
-        $payload = $response->json();
 
         return (float) ($payload['balance'] ?? 0);
     }

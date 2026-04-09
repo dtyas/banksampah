@@ -77,9 +77,9 @@ class PembayaranService
 
             $updated = $this->pembayaranRepository->update($pembayaran, $data)->load('transaksi.nasabah');
 
-            $disbursementMeta = null;
-            if ($this->isDisbursementStatusTransition($beforeStatus, $updated->status, $updated->metode)) {
-                $disbursementMeta = $this->requestDisbursement($updated);
+            $payoutMeta = null;
+            if ($this->isPayoutStatusTransition($beforeStatus, $updated->status, $updated->metode)) {
+                $payoutMeta = $this->requestPayout($updated);
             }
 
             $actorUserId = $actorUserIdFromPayload !== null
@@ -109,7 +109,7 @@ class PembayaranService
                     ],
                     'metode' => $updated->metode,
                     'tanggal' => $updated->tanggal,
-                    'disbursement' => $disbursementMeta,
+                    'payout' => $payoutMeta,
                 ],
             );
 
@@ -146,10 +146,10 @@ class PembayaranService
         });
     }
 
-    public function updateStatusFromDisbursementCallback(string $externalId, string $disbursementStatus, array $payload = []): bool
+    public function updateStatusFromPayoutWebhook(string $referenceId, string $payoutStatus, array $payload = []): bool
     {
-        return DB::transaction(function () use ($externalId, $disbursementStatus, $payload): bool {
-            $pembayaranId = $this->extractPembayaranIdFromExternalId($externalId);
+        return DB::transaction(function () use ($referenceId, $payoutStatus, $payload): bool {
+            $pembayaranId = $this->extractPembayaranIdFromExternalId($referenceId);
             if ($pembayaranId === null) {
                 return false;
             }
@@ -159,7 +159,7 @@ class PembayaranService
                 return false;
             }
 
-            $mappedStatus = $this->mapDisbursementStatus($disbursementStatus);
+            $mappedStatus = $this->mapPayoutStatus($payoutStatus);
             if ($mappedStatus === null) {
                 return false;
             }
@@ -181,8 +181,8 @@ class PembayaranService
                 referenceId: (int) $pembayaran->transaksi_id,
                 amount: (float) $pembayaran->jumlah,
                 meta: [
-                    'external_id' => $externalId,
-                    'disbursement_status' => $disbursementStatus,
+                    'reference_id' => $referenceId,
+                    'payout_status' => $payoutStatus,
                     'before_status' => $beforeStatus,
                     'after_status' => $mappedStatus,
                     'payload' => $payload,
@@ -212,17 +212,18 @@ class PembayaranService
         return null;
     }
 
-    private function mapDisbursementStatus(string $status): ?string
+    private function mapPayoutStatus(string $status): ?string
     {
         return match (strtoupper(trim($status))) {
+            'ACCEPTED', 'REQUESTED' => 'diproses',
             'COMPLETED', 'SUCCEEDED', 'SUCCESS' => 'berhasil',
-            'FAILED', 'CANCELLED', 'CANCELED' => 'ditolak',
+            'FAILED', 'CANCELLED', 'CANCELED', 'REVERSED' => 'ditolak',
             'PENDING', 'PROCESSING' => 'diproses',
             default => null,
         };
     }
 
-    private function isDisbursementStatusTransition(string $beforeStatus, string $afterStatus, ?string $metode): bool
+    private function isPayoutStatusTransition(string $beforeStatus, string $afterStatus, ?string $metode): bool
     {
         if ($beforeStatus === 'diproses' || $afterStatus !== 'diproses') {
             return false;
@@ -241,33 +242,46 @@ class PembayaranService
     /**
      * @return array<string, mixed>
      */
-    private function requestDisbursement(Pembayaran $pembayaran): array
+    private function requestPayout(Pembayaran $pembayaran): array
     {
-        $xenditApiKey = (string) config('services.xendit.api_key');
-        if ($xenditApiKey === '') {
+        $xenditSecretKey = (string) config('services.xendit.secret_key');
+        if ($xenditSecretKey === '') {
             return [
                 'mode' => 'sandbox-skip',
-                'reason' => 'XENDIT_API_KEY is not configured',
+                'reason' => 'XENDIT_SECRET_KEY is not configured',
                 'external_id' => (string) $pembayaran->id,
             ];
         }
 
-        $nasabahPhone = $pembayaran->transaksi?->nasabah?->no_hp;
-        $accountNumber = preg_replace('/\D+/', '', (string) $nasabahPhone) ?: '0000000000';
-        $channelCode = $this->resolveChannelCode($pembayaran->metode);
+        $nasabah = $pembayaran->transaksi?->nasabah;
+        $accountNumber = (string) ($nasabah?->account_number ?? '');
+        if ($accountNumber === '') {
+            $accountNumber = preg_replace('/\D+/', '', (string) ($nasabah?->no_hp ?? '')) ?: '0000000000';
+        }
+        $accountHolderName = trim((string) ($nasabah?->account_holder_name ?? ''));
+        if ($accountHolderName === '') {
+            $accountHolderName = trim((string) ($nasabah?->nama ?? 'Nasabah')) ?: 'Nasabah';
+        }
+        $channelCode = $nasabah?->payout_channel ?: $this->resolveChannelCode($pembayaran->metode);
+        $referenceId = 'payout-' . $pembayaran->id;
 
-        $response = $this->xenditService->sendDisbursement(
-            externalId: (string) $pembayaran->id,
-            amount: (float) $pembayaran->jumlah,
+        $response = $this->xenditService->createPayout(
+            referenceId: $referenceId,
             channelCode: $channelCode,
             accountNumber: $accountNumber,
+            accountHolderName: $accountHolderName,
+            amount: (float) $pembayaran->jumlah,
+            currency: 'IDR',
+            description: 'Pencairan saldo nasabah',
+            idempotencyKey: $referenceId,
         );
 
         return [
             'mode' => 'xendit-live',
-            'external_id' => (string) $pembayaran->id,
+            'external_id' => $referenceId,
             'channel_code' => $channelCode,
             'account_number' => $accountNumber,
+            'account_holder_name' => $accountHolderName,
             'response' => $response,
         ];
     }
@@ -275,15 +289,21 @@ class PembayaranService
     private function resolveChannelCode(?string $metode): string
     {
         $metodeValue = strtolower(trim((string) $metode));
+        $metodeUpper = strtoupper(trim((string) $metode));
+
+        if ($metodeUpper !== '' && str_starts_with($metodeUpper, 'ID_')) {
+            return $metodeUpper;
+        }
 
         return match (true) {
-            str_contains($metodeValue, 'ovo') => 'OVO',
-            str_contains($metodeValue, 'dana') => 'DANA',
-            str_contains($metodeValue, 'gopay') => 'GOPAY',
-            str_contains($metodeValue, 'bni') => 'BNI',
-            str_contains($metodeValue, 'bri') => 'BRI',
-            str_contains($metodeValue, 'mandiri') => 'MANDIRI',
-            default => 'BCA',
+            str_contains($metodeValue, 'ovo') => 'ID_OVO',
+            str_contains($metodeValue, 'dana') => 'ID_DANA',
+            str_contains($metodeValue, 'gopay') => 'ID_GOPAY',
+            str_contains($metodeValue, 'bni') => 'ID_BNI',
+            str_contains($metodeValue, 'bri') => 'ID_BRI',
+            str_contains($metodeValue, 'mandiri') => 'ID_MANDIRI',
+            str_contains($metodeValue, 'bca') => 'ID_BCA',
+            default => 'ID_BCA',
         };
     }
 }

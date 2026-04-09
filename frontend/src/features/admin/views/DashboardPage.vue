@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import api from "../../../api/http";
+import { useAuthStore } from "../../../stores/auth";
 
 type Summary = {
   total_nasabah: number;
@@ -12,6 +13,13 @@ type Summary = {
 
 const summary = ref<Summary | null>(null);
 const loading = ref(false);
+const balance = ref<number | null>(null);
+const balanceLoading = ref(false);
+const balanceError = ref("");
+const authStore = useAuthStore();
+const isStaff = computed(() =>
+  ["super_admin", "petugas"].includes(authStore.user?.role ?? ""),
+);
 
 async function loadSummary() {
   loading.value = true;
@@ -24,6 +32,30 @@ async function loadSummary() {
 }
 
 onMounted(loadSummary);
+
+async function loadBalance() {
+  if (!isStaff.value) {
+    return;
+  }
+
+  balanceLoading.value = true;
+  balanceError.value = "";
+  try {
+    const response = await api.get("/xendit/balance", {
+      params: {
+        account_type: "CASH",
+        currency: "IDR",
+      },
+    });
+    balance.value = Number(response.data?.data?.balance ?? 0);
+  } catch (error) {
+    balanceError.value = "Saldo Xendit tidak tersedia";
+  } finally {
+    balanceLoading.value = false;
+  }
+}
+
+onMounted(loadBalance);
 </script>
 
 <template>
@@ -62,6 +94,22 @@ onMounted(loadSummary);
             summary ? `Rp ${summary.total_harga.toLocaleString("id-ID")}` : "-"
           }}
         </h3>
+      </article>
+      <article
+        v-if="isStaff"
+        class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-100"
+      >
+        <p class="text-sm font-medium text-slate-500">Saldo Xendit</p>
+        <h3 class="mt-4 text-4xl font-bold text-slate-900">
+          <span v-if="balanceLoading">...</span>
+          <span v-else-if="balanceError">-</span>
+          <span v-else
+            >Rp {{ Number(balance ?? 0).toLocaleString("id-ID") }}</span
+          >
+        </h3>
+        <p v-if="balanceError" class="mt-2 text-xs text-rose-500">
+          {{ balanceError }}
+        </p>
       </article>
     </div>
 
