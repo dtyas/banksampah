@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import Chart from "chart.js/auto";
 import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 
@@ -11,12 +12,24 @@ type Summary = {
   total_pembayaran_berhasil: number;
 };
 
+type ChartData = {
+  labels: string[];
+  datasets: {
+    label: string;
+    key: string;
+    data: number[];
+  }[];
+};
+
 const summary = ref<Summary | null>(null);
 const balance = ref<number | null>(null);
 const balanceLoading = ref(false);
 const balanceError = ref("");
 const filterStart = ref("");
 const filterEnd = ref("");
+const chartData = ref<ChartData | null>(null);
+const chartInstance = ref<Chart | null>(null);
+const chartCanvasId = "transactionChart";
 const authStore = useAuthStore();
 const isStaff = computed(() =>
   ["super_admin", "petugas"].includes(authStore.user?.role ?? ""),
@@ -45,8 +58,6 @@ async function loadSummary() {
   }
 }
 
-onMounted(loadSummary);
-
 async function loadBalance() {
   if (!isStaff.value) {
     return;
@@ -68,6 +79,131 @@ async function loadBalance() {
     balanceLoading.value = false;
   }
 }
+
+async function loadChartData() {
+  try {
+    const params: Record<string, string> = {};
+    if (filterStart.value) {
+      params.start_date = filterStart.value;
+    }
+    if (filterEnd.value) {
+      params.end_date = filterEnd.value;
+    }
+
+    const response = await api.get("/laporan/chart", { params });
+    chartData.value = response.data?.data ?? null;
+    renderChart();
+  } catch (error) {
+    chartData.value = null;
+  }
+}
+
+function renderChart() {
+  const canvas = document.getElementById(chartCanvasId) as HTMLCanvasElement;
+  if (!canvas || !chartData.value) return;
+
+  // Destroy existing chart instance
+  if (chartInstance.value) {
+    chartInstance.value.destroy();
+  }
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  chartInstance.value = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: chartData.value.labels,
+      datasets: chartData.value.datasets.map((dataset, index) => ({
+        label: dataset.label,
+        data: dataset.data,
+        borderColor: index === 0 ? "#0ea5e9" : "#10b981",
+        backgroundColor:
+          index === 0 ? "rgba(14, 165, 233, 0.1)" : "rgba(16, 185, 129, 0.1)",
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: index === 0 ? "#0ea5e9" : "#10b981",
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: {
+            usePointStyle: true,
+            padding: 16,
+            font: {
+              size: 12,
+            },
+          },
+        },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          titleFont: { size: 13 },
+          bodyFont: { size: 12 },
+          padding: 12,
+          cornerRadius: 8,
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          ticks: {
+            font: {
+              size: 11,
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: "rgba(0, 0, 0, 0.05)",
+          },
+          ticks: {
+            font: {
+              size: 11,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+async function applyFilter() {
+  await loadChartData();
+}
+
+function resetFilter() {
+  filterStart.value = "";
+  filterEnd.value = "";
+  loadChartData();
+}
+
+watch([filterStart, filterEnd], () => {
+  // Auto-apply filter when dates change
+});
+
+onMounted(() => {
+  loadSummary();
+  loadChartData();
+});
+
+onBeforeUnmount(() => {
+  if (chartInstance.value) {
+    chartInstance.value.destroy();
+  }
+});
 
 onMounted(loadBalance);
 </script>
@@ -276,12 +412,14 @@ onMounted(loadBalance);
             <button
               type="button"
               class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white"
+              @click="applyFilter"
             >
               Filter
             </button>
             <button
               type="button"
               class="rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+              @click="resetFilter"
             >
               Reset
             </button>
@@ -289,34 +427,14 @@ onMounted(loadBalance);
         </div>
 
         <div class="mt-6 h-[340px] rounded-3xl bg-sky-50 p-6">
-          <div class="flex h-full flex-col justify-between">
-            <div class="text-sm text-slate-500">Data bulan ini</div>
-            <svg
-              class="h-56 w-full"
-              viewBox="0 0 600 220"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M20 180 C 80 120, 140 90, 200 110 S 320 190, 400 140 S 520 60, 580 70"
-                stroke="#0ea5e9"
-                stroke-width="4"
-                fill="none"
-              />
-              <path
-                d="M20 180 C 80 120, 140 90, 200 110 S 320 190, 400 140 S 520 60, 580 70"
-                stroke="#0ea5e9"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="2 48"
-              />
-            </svg>
-            <div class="flex justify-between text-xs text-slate-500">
-              <span>Minggu 1</span>
-              <span>Minggu 2</span>
-              <span>Minggu 3</span>
-              <span>Minggu 4</span>
-            </div>
+          <div
+            v-if="!chartData"
+            class="flex h-full items-center justify-center"
+          >
+            <p class="text-sm text-slate-500">Memuat data chart...</p>
+          </div>
+          <div v-else class="relative h-full">
+            <canvas :id="chartCanvasId"></canvas>
           </div>
         </div>
       </section>
