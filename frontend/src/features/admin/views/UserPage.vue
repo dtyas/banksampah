@@ -4,6 +4,7 @@ import api from "../../../api/http";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
+import { usePagination } from "../../../composables/usePagination";
 
 type UserRow = {
   id: number;
@@ -38,6 +39,8 @@ const OPERATIONAL_OPTIONS = [
 
 const rows = ref<UserRow[]>([]);
 const editingId = ref<number | null>(null);
+const showForm = ref(false);
+const searchTerm = ref("");
 const authStore = useAuthStore();
 const canCreateUser = computed(() => canDoOperation(authStore.user, "create"));
 const canUpdateUser = computed(() => canDoOperation(authStore.user, "update"));
@@ -60,6 +63,25 @@ const isNasabahRole = computed(() => form.role === "nasabah");
 const NASABAH_MENU = ["Pencairan Saldo"];
 const NASABAH_OPS = ["Ajukan Pencairan Saldo"];
 
+const filteredRows = computed(() => {
+  const keyword = searchTerm.value.trim().toLowerCase();
+  if (!keyword) {
+    return rows.value;
+  }
+
+  return rows.value.filter((item) => {
+    const values = [item.nama, item.email, item.role, item.status]
+      .join(" ")
+      .toLowerCase();
+    return values.includes(keyword);
+  });
+});
+
+const hasFilters = computed(() => !!searchTerm.value);
+
+const { currentPage, totalPages, pagedRows, setPage } =
+  usePagination(filteredRows);
+
 watch(
   () => form.role,
   (role) => {
@@ -77,6 +99,7 @@ async function loadUsers() {
 
 function startEdit(user: UserRow) {
   editingId.value = user.id;
+  showForm.value = true;
   formErrors.value = {};
   form.nama = user.nama;
   form.email = user.email;
@@ -101,6 +124,12 @@ function resetForm() {
   form.status = "Aktif";
   form.menu_access = [];
   form.operational_access = [];
+  showForm.value = false;
+}
+
+function resetFilters() {
+  searchTerm.value = "";
+  setPage(1);
 }
 
 function applyValidationErrors(error: unknown) {
@@ -193,12 +222,158 @@ async function removeUser(id: number) {
 }
 
 onMounted(loadUsers);
+
+watch(searchTerm, () => {
+  setPage(1);
+});
 </script>
 
 <template>
   <section class="space-y-6">
-    <div class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h3 class="text-lg font-semibold text-slate-900">Form User</h3>
+    <div
+      class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
+    >
+      <div class="text-sm text-slate-500">
+        Kelola user, role, akses menu, dan akses operasional.
+      </div>
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_auto_auto]">
+        <label class="text-xs text-slate-600">
+          Cari
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Nama, email, role"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+          />
+        </label>
+        <div class="flex items-end gap-2">
+          <button
+            v-if="canCreateUser || canUpdateUser"
+            type="button"
+            class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            @click="showForm = !showForm"
+          >
+            {{ showForm ? "Tutup Form" : "Tambah User" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-2xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-300"
+            :disabled="!hasFilters"
+            @click="resetFilters"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
+    >
+      <div class="bg-emerald-700 px-5 py-4">
+        <h3 class="text-xl font-semibold text-white">Data User</h3>
+        <p class="mt-1 text-sm text-emerald-100">
+          Ringkasan akun admin, petugas, dan nasabah.
+        </p>
+      </div>
+      <table class="min-w-full text-left text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-5 py-4">Nama</th>
+            <th class="px-5 py-4">Email</th>
+            <th class="px-5 py-4">Role</th>
+            <th class="px-5 py-4">Status</th>
+            <th class="px-5 py-4">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="item in pagedRows"
+            :key="item.id"
+            class="border-t border-slate-200"
+          >
+            <td class="px-5 py-4">{{ item.nama }}</td>
+            <td class="px-5 py-4">{{ item.email }}</td>
+            <td class="px-5 py-4">{{ item.role }}</td>
+            <td class="px-5 py-4">{{ item.status }}</td>
+            <td class="px-5 py-4">
+              <div class="flex gap-2">
+                <button
+                  v-if="canUpdateUser"
+                  class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
+                  @click="startEdit(item)"
+                >
+                  Edit
+                </button>
+                <button
+                  v-if="canDeleteUser"
+                  class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
+                  @click="removeUser(item.id)"
+                >
+                  Hapus
+                </button>
+                <span
+                  v-if="!canUpdateUser && !canDeleteUser"
+                  class="text-xs text-slate-400"
+                >
+                  Tidak ada akses aksi
+                </span>
+              </div>
+            </td>
+          </tr>
+          <tr
+            v-if="filteredRows.length === 0"
+            class="border-t border-slate-200"
+          >
+            <td colspan="5" class="px-5 py-4">
+              <div
+                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                role="alert"
+              >
+                Belum ada data user.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"
+      >
+        <p class="text-xs text-slate-500">
+          Menampilkan {{ pagedRows.length }} dari {{ filteredRows.length }} data
+          <span v-if="hasFilters" class="text-slate-400">
+            (total {{ rows.length }})
+          </span>
+        </p>
+        <div class="flex items-center gap-2 text-xs">
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === 1"
+            @click="setPage(currentPage - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="text-slate-500">
+            Halaman {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === totalPages"
+            @click="setPage(currentPage + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showForm"
+      class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
+    >
+      <h3 class="text-lg font-semibold text-slate-900">
+        {{ editingId ? "Edit User" : "Form User" }}
+      </h3>
       <p v-if="formErrors.general" class="mt-2 text-sm text-rose-600">
         {{ formErrors.general }}
       </p>
@@ -427,68 +602,6 @@ onMounted(loadUsers);
           Reset
         </button>
       </div>
-    </div>
-
-    <div
-      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
-    >
-      <table class="min-w-full text-left text-sm">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-5 py-4">Nama</th>
-            <th class="px-5 py-4">Email</th>
-            <th class="px-5 py-4">Role</th>
-            <th class="px-5 py-4">Status</th>
-            <th class="px-5 py-4">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in rows"
-            :key="item.id"
-            class="border-t border-slate-200"
-          >
-            <td class="px-5 py-4">{{ item.nama }}</td>
-            <td class="px-5 py-4">{{ item.email }}</td>
-            <td class="px-5 py-4">{{ item.role }}</td>
-            <td class="px-5 py-4">{{ item.status }}</td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button
-                  v-if="canUpdateUser"
-                  class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
-                  @click="startEdit(item)"
-                >
-                  Edit
-                </button>
-                <button
-                  v-if="canDeleteUser"
-                  class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
-                  @click="removeUser(item.id)"
-                >
-                  Hapus
-                </button>
-                <span
-                  v-if="!canUpdateUser && !canDeleteUser"
-                  class="text-xs text-slate-400"
-                >
-                  Tidak ada akses aksi
-                </span>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="rows.length === 0" class="border-t border-slate-200">
-            <td colspan="5" class="px-5 py-4">
-              <div
-                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
-                role="alert"
-              >
-                Belum ada data user.
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </section>
 </template>

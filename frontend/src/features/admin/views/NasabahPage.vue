@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import api from "../../../api/http";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
+import { usePagination } from "../../../composables/usePagination";
 
 type Nasabah = {
   id: number;
@@ -18,6 +19,8 @@ type Nasabah = {
 
 const rows = ref<Nasabah[]>([]);
 const editingId = ref<number | null>(null);
+const showForm = ref(false);
+const searchTerm = ref("");
 const authStore = useAuthStore();
 const canCreateNasabah = computed(() =>
   canDoOperation(authStore.user, "create"),
@@ -52,6 +55,34 @@ const channelOptions = [
   "ID_GOPAY",
 ];
 
+const filteredRows = computed(() => {
+  const keyword = searchTerm.value.trim().toLowerCase();
+  if (!keyword) {
+    return rows.value;
+  }
+
+  return rows.value.filter((item) => {
+    const values = [
+      item.nama,
+      item.alamat ?? "",
+      item.no_hp ?? "",
+      item.payout_channel ?? "",
+      item.account_number ?? "",
+      item.account_holder_name ?? "",
+      item.user?.email ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return values.includes(keyword);
+  });
+});
+
+const hasFilters = computed(() => !!searchTerm.value);
+
+const { currentPage, totalPages, pagedRows, setPage } =
+  usePagination(filteredRows);
+
 async function loadNasabah() {
   const response = await api.get("/nasabah");
   rows.value = response.data?.data?.data ?? response.data?.data ?? [];
@@ -59,6 +90,7 @@ async function loadNasabah() {
 
 function startEdit(item: Nasabah) {
   editingId.value = item.id;
+  showForm.value = true;
   formErrors.value = {};
   form.nama = item.nama ?? "";
   form.alamat = item.alamat ?? "";
@@ -85,6 +117,7 @@ function resetForm() {
   form.email = "";
   form.password = "";
   form.password_confirmation = "";
+  showForm.value = false;
 }
 
 function applyValidationErrors(error: unknown) {
@@ -150,8 +183,13 @@ async function save() {
   resetForm();
 }
 
-async function removeNasabah(id: number) {
+async function removeNasabah(id: number, nama: string) {
   if (!canDeleteNasabah.value) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Hapus nasabah "${nama}"?`);
+  if (!confirmed) {
     return;
   }
 
@@ -159,13 +197,166 @@ async function removeNasabah(id: number) {
   await loadNasabah();
 }
 
+function resetFilters() {
+  searchTerm.value = "";
+  setPage(1);
+}
+
 onMounted(loadNasabah);
+
+watch(searchTerm, () => {
+  setPage(1);
+});
 </script>
 
 <template>
   <section class="space-y-6">
-    <div class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h3 class="text-lg font-semibold text-slate-900">Form Nasabah</h3>
+    <div
+      class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
+    >
+      <div class="text-sm text-slate-500">
+        Kelola data nasabah beserta rekening payout dan akun login.
+      </div>
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_auto_auto]">
+        <label class="text-xs text-slate-600">
+          Cari
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Nama, email, atau rekening"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+          />
+        </label>
+        <div class="flex items-end gap-2">
+          <button
+            v-if="canCreateNasabah || canUpdateNasabah"
+            type="button"
+            class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            @click="showForm = !showForm"
+          >
+            {{ showForm ? "Tutup Form" : "Tambah Nasabah" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-2xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-300"
+            :disabled="!hasFilters"
+            @click="resetFilters"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
+    >
+      <div class="bg-emerald-700 px-5 py-4">
+        <h3 class="text-xl font-semibold text-white">Data Nasabah</h3>
+        <p class="mt-1 text-sm text-emerald-100">
+          Daftar nasabah terbaru yang tersimpan di sistem.
+        </p>
+      </div>
+      <table class="min-w-full text-left text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-5 py-4">Nama</th>
+            <th class="px-5 py-4">Email</th>
+            <th class="px-5 py-4">No HP</th>
+            <th class="px-5 py-4">Rekening/E-Wallet</th>
+            <th class="px-5 py-4">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="item in pagedRows"
+            :key="item.id"
+            class="border-t border-slate-200"
+          >
+            <td class="px-5 py-4">{{ item.nama }}</td>
+            <td class="px-5 py-4">{{ item.user?.email || "-" }}</td>
+            <td class="px-5 py-4">{{ item.no_hp || "-" }}</td>
+            <td class="px-5 py-4">
+              {{ item.account_number || "-" }}
+            </td>
+            <td class="px-5 py-4">
+              <div class="flex gap-2">
+                <button
+                  v-if="canUpdateNasabah"
+                  class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
+                  @click="startEdit(item)"
+                >
+                  Edit
+                </button>
+                <button
+                  v-if="canDeleteNasabah"
+                  class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
+                  @click="removeNasabah(item.id, item.nama)"
+                >
+                  Hapus
+                </button>
+                <span
+                  v-if="!canUpdateNasabah && !canDeleteNasabah"
+                  class="text-xs text-slate-400"
+                >
+                  Tidak ada akses aksi
+                </span>
+              </div>
+            </td>
+          </tr>
+          <tr
+            v-if="filteredRows.length === 0"
+            class="border-t border-slate-200"
+          >
+            <td colspan="5" class="px-5 py-4">
+              <div
+                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                role="alert"
+              >
+                Belum ada data nasabah.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"
+      >
+        <p class="text-xs text-slate-500">
+          Menampilkan {{ pagedRows.length }} dari {{ filteredRows.length }} data
+          <span v-if="hasFilters" class="text-slate-400">
+            (total {{ rows.length }})
+          </span>
+        </p>
+        <div class="flex items-center gap-2 text-xs">
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === 1"
+            @click="setPage(currentPage - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="text-slate-500">
+            Halaman {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === totalPages"
+            @click="setPage(currentPage + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showForm"
+      class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
+    >
+      <h3 class="text-lg font-semibold text-slate-900">
+        {{ editingId ? "Edit Nasabah" : "Form Nasabah" }}
+      </h3>
       <p v-if="formErrors.general" class="mt-2 text-sm text-rose-600">
         {{ formErrors.general }}
       </p>
@@ -359,70 +550,6 @@ onMounted(loadNasabah);
           Reset
         </button>
       </div>
-    </div>
-
-    <div
-      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
-    >
-      <table class="min-w-full text-left text-sm">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-5 py-4">Nama</th>
-            <th class="px-5 py-4">Email</th>
-            <th class="px-5 py-4">No HP</th>
-            <th class="px-5 py-4">Rekening/E-Wallet</th>
-            <th class="px-5 py-4">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in rows"
-            :key="item.id"
-            class="border-t border-slate-200"
-          >
-            <td class="px-5 py-4">{{ item.nama }}</td>
-            <td class="px-5 py-4">{{ item.user?.email || "-" }}</td>
-            <td class="px-5 py-4">{{ item.no_hp || "-" }}</td>
-            <td class="px-5 py-4">
-              {{ item.account_number || "-" }}
-            </td>
-            <td class="px-5 py-4">
-              <div class="flex gap-2">
-                <button
-                  v-if="canUpdateNasabah"
-                  class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
-                  @click="startEdit(item)"
-                >
-                  Edit
-                </button>
-                <button
-                  v-if="canDeleteNasabah"
-                  class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
-                  @click="removeNasabah(item.id)"
-                >
-                  Hapus
-                </button>
-                <span
-                  v-if="!canUpdateNasabah && !canDeleteNasabah"
-                  class="text-xs text-slate-400"
-                >
-                  Tidak ada akses aksi
-                </span>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="rows.length === 0" class="border-t border-slate-200">
-            <td colspan="5" class="px-5 py-4">
-              <div
-                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
-                role="alert"
-              >
-                Belum ada data nasabah.
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </section>
 </template>

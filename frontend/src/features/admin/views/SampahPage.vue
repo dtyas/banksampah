@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
+import { usePagination } from "../../../composables/usePagination";
 
 type Sampah = {
   id: number;
@@ -21,12 +22,37 @@ const kategoriRows = ref<Kategori[]>([]);
 const authStore = useAuthStore();
 const canCreate = computed(() => canDoOperation(authStore.user, "create"));
 const showForm = ref(false);
+const searchTerm = ref("");
 const saving = ref(false);
 const form = ref({
   nama_sampah: "",
   harga_per_kg: "",
   kategori_sampah_id: "",
 });
+
+const filteredRows = computed(() => {
+  const keyword = searchTerm.value.trim().toLowerCase();
+  if (!keyword) {
+    return rows.value;
+  }
+
+  return rows.value.filter((item) => {
+    const values = [
+      item.nama_sampah,
+      item.kategori_sampah?.nama_kategori ?? "",
+      String(item.harga_per_kg ?? ""),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return values.includes(keyword);
+  });
+});
+
+const hasFilters = computed(() => !!searchTerm.value);
+
+const { currentPage, totalPages, pagedRows, setPage } =
+  usePagination(filteredRows);
 
 async function loadSampah() {
   const response = await api.get("/sampah");
@@ -41,6 +67,15 @@ async function loadKategori() {
 onMounted(async () => {
   await Promise.all([loadSampah(), loadKategori()]);
 });
+
+watch(searchTerm, () => {
+  setPage(1);
+});
+
+function resetFilters() {
+  searchTerm.value = "";
+  setPage(1);
+}
 
 async function submitForm() {
   if (!form.value.nama_sampah.trim()) {
@@ -65,18 +100,118 @@ async function submitForm() {
 
 <template>
   <section class="space-y-4">
-    <div class="flex items-center justify-between">
+    <div
+      class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
+    >
       <div class="text-sm text-slate-500">
         Pastikan harga per kilogram selalu terbaru untuk kalkulasi transaksi.
       </div>
-      <button
-        v-if="canCreate"
-        type="button"
-        class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-        @click="showForm = !showForm"
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_auto_auto]">
+        <label class="text-xs text-slate-600">
+          Cari
+          <input
+            v-model="searchTerm"
+            type="text"
+            placeholder="Nama sampah atau kategori"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+          />
+        </label>
+        <div class="flex items-end gap-2">
+          <button
+            v-if="canCreate"
+            type="button"
+            class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            @click="showForm = !showForm"
+          >
+            {{ showForm ? "Tutup" : "Tambah Sampah" }}
+          </button>
+          <button
+            type="button"
+            class="rounded-2xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-300"
+            :disabled="!hasFilters"
+            @click="resetFilters"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
+    >
+      <div class="bg-emerald-700 px-5 py-4">
+        <h3 class="text-xl font-semibold text-white">Data Sampah</h3>
+        <p class="mt-1 text-sm text-emerald-100">
+          Daftar jenis sampah dan harga per kilogram.
+        </p>
+      </div>
+      <table class="min-w-full text-left text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-5 py-4">Nama</th>
+            <th class="px-5 py-4">Kategori</th>
+            <th class="px-5 py-4">Harga/Kg</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="item in pagedRows"
+            :key="item.id"
+            class="border-t border-slate-200"
+          >
+            <td class="px-5 py-4">{{ item.nama_sampah }}</td>
+            <td class="px-5 py-4">
+              {{ item.kategori_sampah?.nama_kategori || "-" }}
+            </td>
+            <td class="px-5 py-4">
+              Rp {{ Number(item.harga_per_kg || 0).toLocaleString("id-ID") }}
+            </td>
+          </tr>
+          <tr
+            v-if="filteredRows.length === 0"
+            class="border-t border-slate-200"
+          >
+            <td colspan="3" class="px-5 py-4">
+              <div
+                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
+                role="alert"
+              >
+                Belum ada data sampah.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"
       >
-        {{ showForm ? "Tutup" : "Tambah Sampah" }}
-      </button>
+        <p class="text-xs text-slate-500">
+          Menampilkan {{ pagedRows.length }} dari {{ filteredRows.length }} data
+          <span v-if="hasFilters" class="text-slate-400">
+            (total {{ rows.length }})
+          </span>
+        </p>
+        <div class="flex items-center gap-2 text-xs">
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === 1"
+            @click="setPage(currentPage - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="text-slate-500">
+            Halaman {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === totalPages"
+            @click="setPage(currentPage + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
+      </div>
     </div>
 
     <div
@@ -139,45 +274,6 @@ async function submitForm() {
           </button>
         </div>
       </form>
-    </div>
-
-    <div
-      class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
-    >
-      <table class="min-w-full text-left text-sm">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-5 py-4">Nama</th>
-            <th class="px-5 py-4">Kategori</th>
-            <th class="px-5 py-4">Harga/Kg</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in rows"
-            :key="item.id"
-            class="border-t border-slate-200"
-          >
-            <td class="px-5 py-4">{{ item.nama_sampah }}</td>
-            <td class="px-5 py-4">
-              {{ item.kategori_sampah?.nama_kategori || "-" }}
-            </td>
-            <td class="px-5 py-4">
-              Rp {{ Number(item.harga_per_kg || 0).toLocaleString("id-ID") }}
-            </td>
-          </tr>
-          <tr v-if="rows.length === 0" class="border-t border-slate-200">
-            <td colspan="3" class="px-5 py-4">
-              <div
-                class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
-                role="alert"
-              >
-                Belum ada data sampah.
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </section>
 </template>

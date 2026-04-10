@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import Chart from "chart.js/auto";
 import api from "../../../api/http";
+import { usePagination } from "../../../composables/usePagination";
 
 type Summary = {
   total_nasabah: number;
@@ -30,10 +32,13 @@ const chart = ref<{
   labels: string[];
   datasets: Array<{ label: string; data: number[] }>;
 } | null>(null);
+const chartCanvas = ref<HTMLCanvasElement | null>(null);
+const chartInstance = ref<Chart | null>(null);
 const transaksiRows = ref<LaporanTransaksi[]>([]);
 const loading = ref(false);
 const startDate = ref("");
 const endDate = ref("");
+const showFilter = ref(false);
 
 const printablePeriod = computed(() => {
   if (!startDate.value && !endDate.value) {
@@ -42,6 +47,27 @@ const printablePeriod = computed(() => {
 
   return `${startDate.value || "Awal"} s/d ${endDate.value || "Sekarang"}`;
 });
+
+const chartRows = computed(() => {
+  if (!chart.value) {
+    return [];
+  }
+
+  return chart.value.labels.map((label, index) => ({
+    label,
+    transaksi: chart.value?.datasets?.[0]?.data?.[index] ?? 0,
+    totalHarga: chart.value?.datasets?.[1]?.data?.[index] ?? 0,
+  }));
+});
+
+const {
+  currentPage: chartPage,
+  totalPages: chartPages,
+  pagedRows: chartPagedRows,
+  setPage: setChartPage,
+} = usePagination(chartRows);
+const { currentPage, totalPages, pagedRows, setPage } =
+  usePagination(transaksiRows);
 
 function statusBadgeClass(status?: string): string {
   const value = (status ?? "").toLowerCase();
@@ -75,6 +101,66 @@ function toCurrency(value: number | undefined): string {
   return `Rp ${Number(value ?? 0).toLocaleString("id-ID")}`;
 }
 
+function renderChart() {
+  if (!chartCanvas.value) {
+    return;
+  }
+
+  chartInstance.value?.destroy();
+
+  const labels = chart.value?.labels ?? [];
+  const transaksiData = chart.value?.datasets?.[0]?.data ?? [];
+  const hargaData = chart.value?.datasets?.[1]?.data ?? [];
+
+  chartInstance.value = new Chart(chartCanvas.value, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Jumlah Transaksi",
+          data: transaksiData,
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56,189,248,0.18)",
+          tension: 0.35,
+        },
+        {
+          label: "Total Harga",
+          data: hargaData,
+          borderColor: "#34d399",
+          backgroundColor: "rgba(52,211,153,0.18)",
+          tension: 0.35,
+          yAxisID: "y1",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: { enabled: true },
+      },
+      scales: {
+        y: {
+          ticks: { color: "#64748b" },
+          grid: { color: "rgba(148,163,184,0.2)" },
+        },
+        y1: {
+          position: "right",
+          ticks: { color: "#64748b" },
+          grid: { drawOnChartArea: false },
+        },
+        x: {
+          ticks: { color: "#64748b" },
+          grid: { display: false },
+        },
+      },
+    },
+  });
+}
+
 async function loadLaporan() {
   loading.value = true;
   try {
@@ -92,6 +178,7 @@ async function loadLaporan() {
     summary.value = summaryResponse.data?.data ?? null;
     chart.value = chartResponse.data?.data ?? null;
     transaksiRows.value = transaksiResponse.data?.data ?? [];
+    renderChart();
   } finally {
     loading.value = false;
   }
@@ -108,21 +195,70 @@ function printLaporan() {
 }
 
 onMounted(loadLaporan);
+
+watch(chart, () => {
+  renderChart();
+});
 </script>
 
 <template>
   <section class="space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="text-sm text-slate-500">
+        Ringkasan laporan transaksi dan performa bank sampah.
+      </div>
+      <button
+        type="button"
+        class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        @click="showFilter = !showFilter"
+      >
+        {{ showFilter ? "Tutup Filter" : "Filter Laporan" }}
+      </button>
+    </div>
+
     <div
+      v-if="showFilter"
       class="no-print rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
     >
-      <h3 class="text-lg font-semibold text-slate-900">Filter Laporan</h3>
+      <div
+        class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"
+      >
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900">Filter Laporan</h3>
+          <p class="mt-1 text-sm text-slate-500">
+            Pilih periode untuk menampilkan laporan yang dibutuhkan.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
+            :disabled="loading"
+            @click="loadLaporan"
+          >
+            {{ loading ? "Memuat..." : "Terapkan Filter" }}
+          </button>
+          <button
+            class="rounded-xl bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+            :disabled="loading"
+            @click="resetFilter"
+          >
+            Reset
+          </button>
+          <button
+            class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white"
+            @click="printLaporan"
+          >
+            Cetak Laporan
+          </button>
+        </div>
+      </div>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
         <label class="text-sm text-slate-600">
           Dari Tanggal
           <input
             v-model="startDate"
             type="date"
-            class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-sky-400 focus:bg-white"
           />
         </label>
         <label class="text-sm text-slate-600">
@@ -130,31 +266,9 @@ onMounted(loadLaporan);
           <input
             v-model="endDate"
             type="date"
-            class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-sky-400 focus:bg-white"
           />
         </label>
-      </div>
-      <div class="mt-4 flex flex-wrap gap-2">
-        <button
-          class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white"
-          :disabled="loading"
-          @click="loadLaporan"
-        >
-          {{ loading ? "Memuat..." : "Terapkan Filter" }}
-        </button>
-        <button
-          class="rounded-xl bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
-          :disabled="loading"
-          @click="resetFilter"
-        >
-          Reset
-        </button>
-        <button
-          class="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white"
-          @click="printLaporan"
-        >
-          Cetak Laporan
-        </button>
       </div>
     </div>
 
@@ -192,11 +306,16 @@ onMounted(loadLaporan);
     </div>
 
     <div class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h3 class="text-lg font-semibold text-slate-900">Data Chart (Backend)</h3>
-      <p class="mt-1 text-sm text-slate-500">
-        Periode laporan: {{ printablePeriod }}
-      </p>
+      <div class="rounded-2xl bg-emerald-700 px-5 py-4 text-white">
+        <h3 class="text-lg font-semibold">Data Chart (Backend)</h3>
+        <p class="mt-1 text-sm text-emerald-100">
+          Periode laporan: {{ printablePeriod }}
+        </p>
+      </div>
       <div class="mt-4 overflow-x-auto">
+        <div class="mb-4 h-[320px]">
+          <canvas ref="chartCanvas"></canvas>
+        </div>
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50">
             <tr>
@@ -207,22 +326,15 @@ onMounted(loadLaporan);
           </thead>
           <tbody>
             <tr
-              v-for="(label, idx) in chart?.labels || []"
-              :key="label"
+              v-for="item in chartPagedRows"
+              :key="item.label"
               class="border-t border-slate-200"
             >
-              <td class="px-4 py-3">{{ label }}</td>
-              <td class="px-4 py-3">
-                {{ chart?.datasets?.[0]?.data?.[idx] ?? 0 }}
-              </td>
-              <td class="px-4 py-3">
-                {{ chart?.datasets?.[1]?.data?.[idx] ?? 0 }}
-              </td>
+              <td class="px-4 py-3">{{ item.label }}</td>
+              <td class="px-4 py-3">{{ item.transaksi }}</td>
+              <td class="px-4 py-3">{{ item.totalHarga }}</td>
             </tr>
-            <tr
-              v-if="(chart?.labels?.length ?? 0) === 0"
-              class="border-t border-slate-200"
-            >
+            <tr v-if="chartRows.length === 0" class="border-t border-slate-200">
               <td colspan="3" class="px-4 py-3">
                 <div
                   class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
@@ -235,10 +347,42 @@ onMounted(loadLaporan);
           </tbody>
         </table>
       </div>
+      <div
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
+      >
+        <p class="text-xs text-slate-500">
+          Menampilkan {{ chartPagedRows.length }} dari {{ chartRows.length }}
+          data
+        </p>
+        <div class="flex items-center gap-2 text-xs">
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="chartPage === 1"
+            @click="setChartPage(chartPage - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="text-slate-500">
+            Halaman {{ chartPage }} / {{ chartPages }}
+          </span>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="chartPage === chartPages"
+            @click="setChartPage(chartPage + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h3 class="text-lg font-semibold text-slate-900">Laporan Transaksi</h3>
+      <div class="rounded-2xl bg-emerald-700 px-5 py-4 text-white">
+        <h3 class="text-lg font-semibold">Laporan Transaksi</h3>
+        <p class="mt-1 text-sm text-emerald-100">
+          Ringkasan transaksi sesuai filter laporan.
+        </p>
+      </div>
       <div class="mt-4 overflow-x-auto">
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50">
@@ -252,7 +396,7 @@ onMounted(loadLaporan);
           </thead>
           <tbody>
             <tr
-              v-for="item in transaksiRows"
+              v-for="item in pagedRows"
               :key="item.id"
               class="border-t border-slate-200"
             >
@@ -284,6 +428,33 @@ onMounted(loadLaporan);
             </tr>
           </tbody>
         </table>
+      </div>
+      <div
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4"
+      >
+        <p class="text-xs text-slate-500">
+          Menampilkan {{ pagedRows.length }} dari {{ transaksiRows.length }}
+          data
+        </p>
+        <div class="flex items-center gap-2 text-xs">
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === 1"
+            @click="setPage(currentPage - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="text-slate-500">
+            Halaman {{ currentPage }} / {{ totalPages }}
+          </span>
+          <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-slate-600 disabled:opacity-60"
+            :disabled="currentPage === totalPages"
+            @click="setPage(currentPage + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
       </div>
     </div>
   </section>
