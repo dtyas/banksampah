@@ -16,6 +16,17 @@ export type AuthLoginPayload = {
     device_name?: string;
 };
 
+export type ForgotPasswordPayload = {
+    email: string;
+};
+
+export type ResetPasswordPayload = {
+    token: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+};
+
 export type ApiResponse<T> = {
     status: boolean;
     message: string;
@@ -30,8 +41,25 @@ type LoginResponse = ApiResponse<{
 
 type MeResponse = ApiResponse<AuthUser>;
 
+type ForgotPasswordResponse = ApiResponse<{
+    reset_token?: string;
+    email?: string;
+}>;
+
+type ResetPasswordResponse = ApiResponse<null>;
+
 export async function login(payload: AuthLoginPayload): Promise<LoginResponse> {
     const response = await api.post<LoginResponse>('/auth/login', payload);
+    return response.data;
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload): Promise<ForgotPasswordResponse> {
+    const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password', payload);
+    return response.data;
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<ResetPasswordResponse> {
+    const response = await api.post<ResetPasswordResponse>('/auth/reset-password', payload);
     return response.data;
 }
 

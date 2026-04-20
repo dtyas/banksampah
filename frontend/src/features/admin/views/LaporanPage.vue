@@ -40,9 +40,31 @@ const startDate = ref("");
 const endDate = ref("");
 const showFilter = ref(false);
 
+// Auto-set default period (last 30 days) as fallback
+function getDefaultPeriod() {
+  const now = new Date();
+  const end = now; // Today
+  const start = new Date();
+  start.setDate(start.getDate() - 30); // 30 days ago
+  
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  
+  return { 
+    startOfMonth: formatDate(start),
+    endOfMonth: formatDate(end)
+  };
+}
+
 const printablePeriod = computed(() => {
   if (!startDate.value && !endDate.value) {
-    return "Semua Periode";
+    // Show current month period as default
+    const { startOfMonth, endOfMonth } = getDefaultPeriod();
+    return `${startOfMonth} s/d ${endOfMonth}`;
   }
 
   return `${startDate.value || "Awal"} s/d ${endDate.value || "Sekarang"}`;
@@ -168,6 +190,13 @@ async function loadLaporan() {
       ...(startDate.value ? { start_date: startDate.value } : {}),
       ...(endDate.value ? { end_date: endDate.value } : {}),
     };
+
+    // Auto-apply default period if no filters set
+    if (!startDate.value && !endDate.value) {
+      const { startOfMonth, endOfMonth } = getDefaultPeriod();
+      params.start_date = startOfMonth;
+      params.end_date = endOfMonth;
+    }
 
     const [summaryResponse, chartResponse, transaksiResponse] =
       await Promise.all([
@@ -387,6 +416,7 @@ watch(chart, () => {
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50">
             <tr>
+              <th class="px-4 py-3">No</th>
               <th class="px-4 py-3">Tanggal</th>
               <th class="px-4 py-3">Nasabah</th>
               <th class="px-4 py-3">Total Berat</th>
@@ -396,10 +426,11 @@ watch(chart, () => {
           </thead>
           <tbody>
             <tr
-              v-for="item in pagedRows"
+              v-for="(item, index) in pagedRows"
               :key="item.id"
               class="border-t border-slate-200"
             >
+              <td class="px-4 py-3">{{ (currentPage - 1) * 10 + index + 1 }}</td>
               <td class="px-4 py-3">{{ formatDate(item.tanggal) }}</td>
               <td class="px-4 py-3">{{ item.nasabah?.nama || "-" }}</td>
               <td class="px-4 py-3">{{ Number(item.total_berat || 0) }} Kg</td>

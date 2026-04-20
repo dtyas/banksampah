@@ -279,6 +279,7 @@ watch(searchTerm, () => {
       <table class="min-w-full text-left text-sm">
         <thead class="bg-slate-50">
           <tr>
+            <th class="px-5 py-4">No</th>
             <th class="px-5 py-4">Nama</th>
             <th class="px-5 py-4">Email</th>
             <th class="px-5 py-4">Role</th>
@@ -288,10 +289,11 @@ watch(searchTerm, () => {
         </thead>
         <tbody>
           <tr
-            v-for="item in pagedRows"
+            v-for="(item, index) in pagedRows"
             :key="item.id"
             class="border-t border-slate-200"
           >
+            <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
             <td class="px-5 py-4">{{ item.nama }}</td>
             <td class="px-5 py-4">{{ item.email }}</td>
             <td class="px-5 py-4">{{ item.role }}</td>

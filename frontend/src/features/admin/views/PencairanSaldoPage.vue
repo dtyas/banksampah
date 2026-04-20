@@ -587,6 +587,7 @@ onUnmounted(() => {
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50">
             <tr>
+              <th class="px-5 py-4">No</th>
               <th class="px-5 py-4">Tanggal</th>
               <th class="px-5 py-4">Jumlah</th>
               <th class="px-5 py-4">Status</th>
@@ -595,10 +596,11 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr
-              v-for="item in nasabahPagedRows"
+              v-for="(item, index) in nasabahPagedRows"
               :key="item.id"
               class="border-t border-slate-200"
             >
+              <td class="px-5 py-4">{{ (nasabahPage - 1) * 10 + index + 1 }}</td>
               <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
               <td class="px-5 py-4">
                 Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}
@@ -695,7 +697,7 @@ onUnmounted(() => {
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50">
             <tr>
-              <th class="px-5 py-4">ID</th>
+              <th class="px-5 py-4">No</th>
               <th class="px-5 py-4">Transaksi</th>
               <th class="px-5 py-4">Jumlah</th>
               <th class="px-5 py-4">Metode</th>
@@ -708,11 +710,11 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr
-              v-for="item in pagedRows"
+              v-for="(item, index) in pagedRows"
               :key="item.id"
               class="border-t border-slate-200"
             >
-              <td class="px-5 py-4">{{ item.id }}</td>
+              <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
               <td class="px-5 py-4">{{ item.transaksi_id }}</td>
               <td class="px-5 py-4">
                 Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}

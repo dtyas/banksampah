@@ -149,6 +149,7 @@ async function submitForm() {
       <table class="min-w-full text-left text-sm">
         <thead class="bg-slate-50">
           <tr>
+            <th class="px-5 py-4">No</th>
             <th class="px-5 py-4">Nama</th>
             <th class="px-5 py-4">Kategori</th>
             <th class="px-5 py-4">Harga/Kg</th>
@@ -156,10 +157,11 @@ async function submitForm() {
         </thead>
         <tbody>
           <tr
-            v-for="item in pagedRows"
+            v-for="(item, index) in pagedRows"
             :key="item.id"
             class="border-t border-slate-200"
           >
+            <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
             <td class="px-5 py-4">{{ item.nama_sampah }}</td>
             <td class="px-5 py-4">
               {{ item.kategori_sampah?.nama_kategori || "-" }}

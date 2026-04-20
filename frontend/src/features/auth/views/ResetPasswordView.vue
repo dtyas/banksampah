@@ -1,44 +1,71 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
-import { useAuthStore } from "../../../stores/auth";
+import { ref, reactive } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { resetPassword } from "../../../api/auth.api";
 
 const router = useRouter();
-const authStore = useAuthStore();
+const route = useRoute();
+const token = ref(route.query.token as string || "");
+const email = ref(route.query.email as string || "");
+const loading = ref(false);
 const errorMessage = ref("");
+const successMessage = ref("");
 const showPassword = ref(false);
+const showPasswordConfirmation = ref(false);
 
 const form = reactive({
-  email: "",
   password: "",
-  device_name: "vue-spa",
+  password_confirmation: "",
 });
 
-async function submitLogin() {
+async function submitResetPassword() {
   errorMessage.value = "";
+  successMessage.value = "";
+  loading.value = true;
+
+  if (form.password !== form.password_confirmation) {
+    errorMessage.value = "Konfirmasi password tidak cocok";
+    loading.value = false;
+    return;
+  }
 
   try {
-    await authStore.signIn(form);
-    await router.push({ name: "dashboard" });
+    const response = await resetPassword({
+      token: token.value,
+      email: email.value,
+      password: form.password,
+      password_confirmation: form.password_confirmation,
+    });
+
+    if (!response.status) {
+      throw new Error(response.message || "Reset password gagal");
+    }
+
+    successMessage.value = response.message;
+    setTimeout(() => {
+      router.push({ name: "login" });
+    }, 2000);
   } catch (error) {
     const message =
-      error?.response?.data?.message || error.message || "Login gagal";
+      error?.response?.data?.message || error.message || "Reset password gagal";
     errorMessage.value = message;
-    form.password = "";
+  } finally {
+    loading.value = false;
   }
 }
 
-function togglePassword(): void {
-  showPassword.value = !showPassword.value;
+function backToLogin() {
+  router.push({ name: "login" });
 }
 </script>
 
 <template>
-  <div id="loginPage" class="min-h-screen bg-slate-50 px-6 py-10">
+  <div id="resetPasswordPage" class="min-h-screen bg-slate-50 px-6 py-10">
     <div class="mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center">
       <div
         class="grid w-full gap-8 overflow-hidden rounded-[36px] bg-white shadow-sm ring-1 ring-slate-200 lg:grid-cols-[1.15fr_0.85fr]"
       >
+        <!-- Left Panel - Branding -->
         <section
           class="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-500 to-sky-500 px-8 py-10 text-white lg:px-12 lg:py-14"
         >
@@ -79,24 +106,6 @@ function togglePassword(): void {
                   stroke-linejoin="round"
                   stroke-width="1.8"
                   d="M12 3v18m4-14.5A3.5 3.5 0 0012.5 3H11a4 4 0 000 8h2a4 4 0 110 8H11.5A3.5 3.5 0 018 17.5"
-                />
-              </svg>
-            </div>
-            <div
-              class="absolute right-24 top-24 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-8 w-8 text-white/75"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M8 7V6a4 4 0 118 0v1m-9 0h10l-1 12a2 2 0 01-2 2H10a2 2 0 01-2-2L7 7zm3 4h4m-4 4h4"
                 />
               </svg>
             </div>
@@ -166,119 +175,143 @@ function togglePassword(): void {
           </div>
         </section>
 
+        <!-- Right Panel - Form -->
         <section class="px-8 py-10 lg:px-12 lg:py-14">
           <div class="mx-auto max-w-md">
             <p
               class="text-sm font-semibold uppercase tracking-[0.3em] text-sky-500"
             >
-              Admin Login
+              Reset Password
             </p>
             <h2 class="mt-3 text-3xl font-bold text-slate-900">
-              Masuk ke Dashboard
+              Buat Password Baru
             </h2>
             <p class="mt-3 text-sm text-slate-500">
-              Gunakan akun admin untuk mengakses seluruh fitur pengelolaan bank
-              sampah.
+              Masukkan password baru Anda untuk reset akses akun.
             </p>
 
-            <form class="mt-8 space-y-5" @submit.prevent="submitLogin">
+            <!-- Success State -->
+            <div v-if="successMessage" class="mt-8">
+              <div
+                class="rounded-2xl bg-emerald-50 p-6 text-center ring-1 ring-emerald-100"
+              >
+                <div
+                  class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-8 w-8 text-emerald-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <h3 class="mt-4 text-lg font-semibold text-emerald-900">
+                  Password Berhasil Direset
+                </h3>
+                <p class="mt-2 text-sm text-emerald-700">
+                  {{ successMessage }}
+                </p>
+                <p class="mt-3 text-xs text-emerald-600">
+                  Mengalihkan ke halaman login...
+                </p>
+              </div>
+            </div>
+
+            <!-- Form State -->
+            <form v-else class="mt-8 space-y-5" @submit.prevent="submitResetPassword">
+              <div v-if="!token" class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-100">
+                ⚠️ Token reset tidak ditemukan. Silakan gunakan link dari email.
+              </div>
               <div>
                 <label
-                  for="loginEmail"
+                  for="resetEmail"
                   class="mb-2 block text-sm font-medium text-slate-700"
-                  >Email / Username</label
+                  >Email</label
                 >
                 <input
-                  id="loginEmail"
-                  v-model="form.email"
-                  type="text"
-                  placeholder="admin@banksampah.id"
+                  id="resetEmail"
+                  v-model="email"
+                  type="email"
+                  placeholder="nama@email.com"
                   class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none transition focus:border-emerald-400 focus:bg-white"
                   required
                 />
               </div>
               <div>
                 <label
-                  for="loginPassword"
+                  for="resetPassword"
                   class="mb-2 block text-sm font-medium text-slate-700"
-                  >Password</label
+                  >Password Baru</label
                 >
                 <div class="relative">
                   <input
-                    id="loginPassword"
+                    id="resetPassword"
                     v-model="form.password"
                     :type="showPassword ? 'text' : 'password'"
-                    placeholder="Masukkan password"
+                    placeholder="Minimal 8 karakter"
                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 outline-none transition focus:border-emerald-400 focus:bg-white"
                     required
                   />
                   <button
                     type="button"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-emerald-600"
-                    :aria-label="
-                      showPassword
-                        ? 'Sembunyikan password'
-                        : 'Tampilkan password'
-                    "
-                    @click="togglePassword"
+                    @click="showPassword = !showPassword"
                   >
-                    <svg
-                      v-if="showPassword"
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
-                      />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <svg
-                      v-else
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M3 3l18 18" />
-                      <path d="M10.1 10.2a2.8 2.8 0 013.7 3.7" />
-                      <path
-                        d="M7.6 7.7C4.5 9.2 2 12 2 12s3.5 7 10 7c2.3 0 4.2-.6 5.7-1.5"
-                      />
-                      <path
-                        d="M14.5 6.2A9.6 9.6 0 0112 5c-6.5 0-10 7-10 7a17.7 17.7 0 004.1 4.9"
-                      />
-                    </svg>
+                    {{ showPassword ? "Hide" : "Show" }}
                   </button>
                 </div>
-                <div class="mt-2 flex justify-end">
-                  <router-link
-                    to="/forgot-password"
-                    class="text-sm font-medium text-sky-600 transition hover:text-sky-700"
+              </div>
+              <div>
+                <label
+                  for="resetPasswordConfirm"
+                  class="mb-2 block text-sm font-medium text-slate-700"
+                  >Konfirmasi Password</label
+                >
+                <div class="relative">
+                  <input
+                    id="resetPasswordConfirm"
+                    v-model="form.password_confirmation"
+                    :type="showPasswordConfirmation ? 'text' : 'password'"
+                    placeholder="Ulangi password baru"
+                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 outline-none transition focus:border-emerald-400 focus:bg-white"
+                    required
+                  />
+                  <button
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-emerald-600"
+                    @click="showPasswordConfirmation = !showPasswordConfirmation"
                   >
-                    Lupa password?
-                  </router-link>
+                    {{ showPasswordConfirmation ? "Hide" : "Show" }}
+                  </button>
                 </div>
               </div>
               <button
                 type="submit"
                 class="w-full rounded-2xl bg-emerald-600 px-5 py-3.5 text-base font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                :disabled="authStore.loading"
+                :disabled="loading || !token"
               >
-                Login
+                {{ loading ? "Mereset..." : "Reset Password" }}
               </button>
               <p v-if="errorMessage" class="text-sm font-medium text-rose-600">
                 {{ errorMessage }}
               </p>
+              <div class="text-center">
+                <button
+                  type="button"
+                  class="text-sm font-medium text-slate-600 transition hover:text-emerald-600"
+                  @click="backToLogin"
+                >
+                  ← Kembali ke Login
+                </button>
+              </div>
             </form>
           </div>
         </section>

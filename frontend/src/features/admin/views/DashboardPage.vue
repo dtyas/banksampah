@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import {
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  ref,
+  watch,
+  nextTick,
+} from "vue";
 import Chart from "chart.js/auto";
 import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
@@ -21,12 +28,36 @@ type ChartData = {
   }[];
 };
 
+// Auto-set default period (last 30 days) as fallback
+function getDefaultPeriod() {
+  const now = new Date();
+  const end = now; // Today
+  const start = new Date();
+  start.setDate(start.getDate() - 30); // 30 days ago
+
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  return {
+    startOfMonth: formatDate(start),
+    endOfMonth: formatDate(end),
+  };
+}
+
 const summary = ref<Summary | null>(null);
 const balance = ref<number | null>(null);
 const balanceLoading = ref(false);
 const balanceError = ref("");
-const filterStart = ref("");
-const filterEnd = ref("");
+
+// Initialize with default period (last 30 days)
+const defaultPeriod = getDefaultPeriod();
+const filterStart = ref(defaultPeriod.startOfMonth);
+const filterEnd = ref(defaultPeriod.endOfMonth);
+
 const chartData = ref<ChartData | null>(null);
 const chartInstance = ref<Chart | null>(null);
 const chartCanvasId = "transactionChart";
@@ -82,16 +113,14 @@ async function loadBalance() {
 
 async function loadChartData() {
   try {
-    const params: Record<string, string> = {};
-    if (filterStart.value) {
-      params.start_date = filterStart.value;
-    }
-    if (filterEnd.value) {
-      params.end_date = filterEnd.value;
-    }
+    const params: Record<string, string> = {
+      start_date: filterStart.value,
+      end_date: filterEnd.value,
+    };
 
     const response = await api.get("/laporan/chart", { params });
     chartData.value = response.data?.data ?? null;
+    await nextTick();
     renderChart();
   } catch (error) {
     chartData.value = null;
@@ -185,17 +214,21 @@ async function applyFilter() {
 }
 
 function resetFilter() {
-  filterStart.value = "";
-  filterEnd.value = "";
+  // Reset to default period (last 30 days)
+  const { startOfMonth, endOfMonth } = getDefaultPeriod();
+  filterStart.value = startOfMonth;
+  filterEnd.value = endOfMonth;
   loadChartData();
 }
 
 watch([filterStart, filterEnd], () => {
-  // Auto-apply filter when dates change
+  // Auto-apply filter when dates change (optional, currently disabled)
+  // applyFilter();
 });
 
 onMounted(() => {
   loadSummary();
+  loadBalance();
   loadChartData();
 });
 
@@ -204,8 +237,6 @@ onBeforeUnmount(() => {
     chartInstance.value.destroy();
   }
 });
-
-onMounted(loadBalance);
 </script>
 
 <template>

@@ -42,5 +42,26 @@ services:
       volumes:
         - ./frontend:/app
 
+    mailpit:
+      image: axllent/mailpit:latest
+      container_name: banksampah-mailpit
+      restart: unless-stopped
+      ports:
+        - "1025:1025"
+        - "8025:8025"
+
+    queue-worker:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      container_name: banksampah-queue-worker
+      command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+      volumes:
+        - ./backend/bank-sampah-app:/var/www/html
+      depends_on:
+        - mysql
+        - mailpit
+      restart: unless-stopped
+
 volumes:
   mysql_data:

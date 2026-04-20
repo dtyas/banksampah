@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { canAccessRoute, getFirstAccessibleRoute } from '../features/auth/access-control';
 import LoginView from '../features/auth/views/LoginView.vue';
+import ForgotPasswordView from '../features/auth/views/ForgotPasswordView.vue';
+import ResetPasswordView from '../features/auth/views/ResetPasswordView.vue';
 import AdminShell from '../features/legacy/AdminShell.vue';
 import DashboardPage from '../features/admin/views/DashboardPage.vue';
 import NasabahPage from '../features/admin/views/NasabahPage.vue';
@@ -18,6 +20,18 @@ const routes = [
         path: '/login',
         name: 'login',
         component: LoginView,
+        meta: { guest: true },
+    },
+    {
+        path: '/forgot-password',
+        name: 'forgot-password',
+        component: ForgotPasswordView,
+        meta: { guest: true },
+    },
+    {
+        path: '/reset-password',
+        name: 'reset-password',
+        component: ResetPasswordView,
         meta: { guest: true },
     },
     {
