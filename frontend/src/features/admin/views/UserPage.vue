@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import api from "../../../api/http";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
@@ -42,9 +42,16 @@ const editingId = ref<number | null>(null);
 const showForm = ref(false);
 const searchTerm = ref("");
 const authStore = useAuthStore();
-const canCreateUser = computed(() => canDoOperation(authStore.user, "create"));
-const canUpdateUser = computed(() => canDoOperation(authStore.user, "update"));
-const canDeleteUser = computed(() => canDoOperation(authStore.user, "delete"));
+const isSuperAdmin = computed(() => authStore.user?.role === "super_admin");
+const canCreateUser = computed(
+  () => isSuperAdmin.value && canDoOperation(authStore.user, "create"),
+);
+const canUpdateUser = computed(
+  () => isSuperAdmin.value && canDoOperation(authStore.user, "update"),
+);
+const canDeleteUser = computed(
+  () => isSuperAdmin.value && canDoOperation(authStore.user, "delete"),
+);
 const showPassword = ref(false);
 const showPasswordConfirmation = ref(false);
 const formErrors = ref<Record<string, string>>({});
@@ -60,7 +67,7 @@ const form = reactive({
 });
 
 const isNasabahRole = computed(() => form.role === "nasabah");
-const NASABAH_MENU = ["Pencairan Saldo"];
+const NASABAH_MENU = ["Kategori Sampah", "Sampah", "Pencairan Saldo"];
 const NASABAH_OPS = ["Ajukan Pencairan Saldo"];
 
 const filteredRows = computed(() => {
@@ -88,6 +95,10 @@ watch(
     if (role === "nasabah") {
       form.menu_access = [...NASABAH_MENU];
       form.operational_access = [...NASABAH_OPS];
+    } else if (role === "super_admin" || role === "petugas") {
+      // Untuk super_admin dan petugas, berikan semua akses secara default
+      form.menu_access = [...MENU_OPTIONS];
+      form.operational_access = [...OPERATIONAL_OPTIONS];
     }
   },
 );
@@ -107,8 +118,21 @@ function startEdit(user: UserRow) {
   form.password_confirmation = "";
   form.role = user.role;
   form.status = user.status || "Aktif";
-  form.menu_access = [...(user.menu_access || [])];
-  form.operational_access = [...(user.operational_access || [])];
+
+  // Untuk super_admin dan petugas, jika akses kosong, berikan semua akses
+  if (user.role === "super_admin" || user.role === "petugas") {
+    form.menu_access =
+      user.menu_access && user.menu_access.length > 0
+        ? [...user.menu_access]
+        : [...MENU_OPTIONS];
+    form.operational_access =
+      user.operational_access && user.operational_access.length > 0
+        ? [...user.operational_access]
+        : [...OPERATIONAL_OPTIONS];
+  } else {
+    form.menu_access = [...(user.menu_access || [])];
+    form.operational_access = [...(user.operational_access || [])];
+  }
 }
 
 function resetForm() {
@@ -248,7 +272,7 @@ watch(searchTerm, () => {
         </label>
         <div class="flex items-end gap-2">
           <button
-            v-if="canCreateUser || canUpdateUser"
+            v-if="isSuperAdmin && (canCreateUser || canUpdateUser)"
             type="button"
             class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
             @click="showForm = !showForm"
@@ -270,6 +294,12 @@ watch(searchTerm, () => {
     <div
       class="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-slate-200"
     >
+      <div
+        v-if="!isSuperAdmin"
+        class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700"
+      >
+        ⚠️ Hanya <strong>Super Admin</strong> yang dapat mengelola user.
+      </div>
       <div class="bg-emerald-700 px-5 py-4">
         <h3 class="text-xl font-semibold text-white">Data User</h3>
         <p class="mt-1 text-sm text-emerald-100">
@@ -301,21 +331,24 @@ watch(searchTerm, () => {
             <td class="px-5 py-4">
               <div class="flex gap-2">
                 <button
-                  v-if="canUpdateUser"
+                  v-if="isSuperAdmin && canUpdateUser"
                   class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
                   @click="startEdit(item)"
                 >
                   Edit
                 </button>
                 <button
-                  v-if="canDeleteUser"
+                  v-if="isSuperAdmin && canDeleteUser"
                   class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
                   @click="removeUser(item.id)"
                 >
                   Hapus
                 </button>
+                <span v-if="!isSuperAdmin" class="text-xs text-slate-400">
+                  Hanya Super Admin
+                </span>
                 <span
-                  v-if="!canUpdateUser && !canDeleteUser"
+                  v-else-if="!canUpdateUser && !canDeleteUser"
                   class="text-xs text-slate-400"
                 >
                   Tidak ada akses aksi
@@ -370,7 +403,7 @@ watch(searchTerm, () => {
     </div>
 
     <div
-      v-if="showForm"
+      v-if="showForm && isSuperAdmin"
       class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
     >
       <h3 class="text-lg font-semibold text-slate-900">
@@ -529,8 +562,11 @@ watch(searchTerm, () => {
               v-model="form.menu_access"
               type="checkbox"
               :value="menu"
-              class="h-4 w-4 rounded border-slate-300"
-              :disabled="isNasabahRole"
+              :class="[
+                'h-4 w-4 rounded border-slate-300',
+                isSuperAdmin ? 'cursor-pointer' : 'cursor-not-allowed',
+              ]"
+              :disabled="!isSuperAdmin"
             />
             <span>{{ menu }}</span>
           </label>
@@ -573,8 +609,11 @@ watch(searchTerm, () => {
               v-model="form.operational_access"
               type="checkbox"
               :value="access"
-              class="h-4 w-4 rounded border-slate-300"
-              :disabled="isNasabahRole"
+              :class="[
+                'h-4 w-4 rounded border-slate-300',
+                isSuperAdmin ? 'cursor-pointer' : 'cursor-not-allowed',
+              ]"
+              :disabled="!isSuperAdmin"
             />
             <span>{{ access }}</span>
           </label>

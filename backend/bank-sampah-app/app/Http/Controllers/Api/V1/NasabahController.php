@@ -34,7 +34,7 @@ class NasabahController extends ApiController
     {
         $validated = $request->validated();
 
-        $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? ['Pencairan Saldo']);
+        $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? ['Kategori Sampah', 'Sampah', 'Pencairan Saldo']);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? ['Ajukan Pencairan Saldo']);
 
         $nasabah = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess) {

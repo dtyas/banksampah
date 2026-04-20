@@ -40,9 +40,18 @@ class UserController extends ApiController
 
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
+        
         if (($validated['role'] ?? null) === 'nasabah') {
-            $menuAccess = ['Pencairan Saldo'];
+            $menuAccess = ['Kategori Sampah', 'Sampah'];
             $operationalAccess = ['Ajukan Pencairan Saldo'];
+        } elseif (($validated['role'] ?? null) === 'super_admin') {
+            // Super admin mendapat semua akses secara default
+            $menuAccess = $this->accessControlService::MENU_OPTIONS;
+            $operationalAccess = $this->accessControlService::OPERATIONAL_OPTIONS;
+        } elseif (($validated['role'] ?? null) === 'petugas') {
+            // Petugas mendapat semua akses secara default
+            $menuAccess = $this->accessControlService::MENU_OPTIONS;
+            $operationalAccess = $this->accessControlService::OPERATIONAL_OPTIONS;
         }
 
         $user = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess): User {
@@ -87,8 +96,24 @@ class UserController extends ApiController
         }
 
         if (($validated['role'] ?? null) === 'nasabah') {
-            $validated['menu_access'] = ['Pencairan Saldo'];
+            $validated['menu_access'] = ['Kategori Sampah', 'Sampah'];
             $validated['operational_access'] = ['Ajukan Pencairan Saldo'];
+        } elseif (($validated['role'] ?? null) === 'super_admin') {
+            // Super admin mendapat semua akses secara default jika tidak dikirim
+            if (!array_key_exists('menu_access', $validated)) {
+                $validated['menu_access'] = $this->accessControlService::MENU_OPTIONS;
+            }
+            if (!array_key_exists('operational_access', $validated)) {
+                $validated['operational_access'] = $this->accessControlService::OPERATIONAL_OPTIONS;
+            }
+        } elseif (($validated['role'] ?? null) === 'petugas') {
+            // Petugas mendapat semua akses secara default jika tidak dikirim
+            if (!array_key_exists('menu_access', $validated)) {
+                $validated['menu_access'] = $this->accessControlService::MENU_OPTIONS;
+            }
+            if (!array_key_exists('operational_access', $validated)) {
+                $validated['operational_access'] = $this->accessControlService::OPERATIONAL_OPTIONS;
+            }
         }
 
         DB::transaction(function () use ($user, $validated): void {

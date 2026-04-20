@@ -48,6 +48,11 @@ export function canAccessRoute(user: AuthUser | null | undefined, routeName: str
         return true;
     }
 
+    // Nasabah bisa akses Kategori Sampah dan Sampah secara default
+    if (user?.role === 'nasabah' && (menu === 'Kategori Sampah' || menu === 'Sampah' || menu === 'Pencairan Saldo')) {
+        return true;
+    }
+
     return canAccessMenu(user, menu);
 }
 
