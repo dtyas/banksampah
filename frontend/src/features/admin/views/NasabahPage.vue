@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { isFeatureEnabled } from "../../../config/features";
 
 type Nasabah = {
   id: number;
@@ -45,15 +46,25 @@ const form = reactive({
   password: "",
   password_confirmation: "",
 });
-const channelOptions = [
-  "ID_BCA",
-  "ID_BNI",
-  "ID_BRI",
-  "ID_MANDIRI",
-  "ID_OVO",
-  "ID_DANA",
-  "ID_GOPAY",
-];
+
+const isEditMode = computed(() => editingId.value !== null);
+const isPayoutCash = computed(() => form.payout_channel === "CASH");
+
+const channelOptions = computed(() => {
+  const base = ["CASH"];
+  if (isFeatureEnabled("enableXenditDisbursement")) {
+    base.push(
+      "ID_BCA",
+      "ID_BNI",
+      "ID_BRI",
+      "ID_MANDIRI",
+      "ID_OVO",
+      "ID_DANA",
+      "ID_GOPAY",
+    );
+  }
+  return base;
+});
 
 const filteredRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase();
@@ -157,14 +168,18 @@ async function save() {
     nama: form.nama,
     alamat: form.alamat,
     no_hp: form.no_hp,
-    payout_channel: form.payout_channel,
-    account_number: form.account_number,
-    account_holder_name: form.account_holder_name,
-    email: form.email,
   };
-  if (form.password) {
-    payload.password = form.password;
-    payload.password_confirmation = form.password_confirmation;
+
+  // Only include payout details in edit mode
+  if (editingId.value) {
+    payload.payout_channel = form.payout_channel;
+    payload.account_number = form.account_number;
+    payload.account_holder_name = form.account_holder_name;
+    payload.email = form.email;
+    if (form.password) {
+      payload.password = form.password;
+      payload.password_confirmation = form.password_confirmation;
+    }
   }
 
   try {
@@ -264,7 +279,12 @@ watch(searchTerm, () => {
             <th class="px-5 py-4">Nama</th>
             <th class="px-5 py-4">Email</th>
             <th class="px-5 py-4">No HP</th>
-            <th class="px-5 py-4">Rekening/E-Wallet</th>
+            <th
+              v-if="isFeatureEnabled('enableXenditDisbursement')"
+              class="px-5 py-4"
+            >
+              Rekening/E-Wallet
+            </th>
             <th class="px-5 py-4">Aksi</th>
           </tr>
         </thead>
@@ -278,7 +298,10 @@ watch(searchTerm, () => {
             <td class="px-5 py-4">{{ item.nama }}</td>
             <td class="px-5 py-4">{{ item.user?.email || "-" }}</td>
             <td class="px-5 py-4">{{ item.no_hp || "-" }}</td>
-            <td class="px-5 py-4">
+            <td
+              v-if="isFeatureEnabled('enableXenditDisbursement')"
+              class="px-5 py-4"
+            >
               {{ item.account_number || "-" }}
             </td>
             <td class="px-5 py-4">
@@ -310,7 +333,10 @@ watch(searchTerm, () => {
             v-if="filteredRows.length === 0"
             class="border-t border-slate-200"
           >
-            <td colspan="5" class="px-5 py-4">
+            <td
+              :colspan="isFeatureEnabled('enableXenditDisbursement') ? 6 : 5"
+              class="px-5 py-4"
+            >
               <div
                 class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
                 role="alert"
@@ -377,7 +403,7 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <div>
+        <div v-if="isEditMode">
           <label class="mb-2 block text-sm font-medium text-slate-700"
             >Email User Nasabah</label
           >
@@ -405,7 +431,7 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <div>
+        <div v-if="isEditMode">
           <label class="mb-2 block text-sm font-medium text-slate-700"
             >Channel Payout</label
           >
@@ -430,98 +456,94 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <div>
-          <label class="mb-2 block text-sm font-medium text-slate-700"
-            >Nomor Rekening/E-Wallet</label
-          >
-          <input
-            v-model="form.account_number"
-            placeholder="Nomor rekening atau no HP e-wallet"
-            class="w-full rounded-xl border border-slate-300 px-4 py-3"
-          />
-          <p
-            v-if="formErrors.account_number"
-            class="mt-1 text-xs text-rose-600"
-          >
-            {{ formErrors.account_number }}
-          </p>
-        </div>
-
-        <div>
-          <label class="mb-2 block text-sm font-medium text-slate-700"
-            >Nama Pemilik Rekening</label
-          >
-          <input
-            v-model="form.account_holder_name"
-            placeholder="Nama pemilik rekening"
-            class="w-full rounded-xl border border-slate-300 px-4 py-3"
-          />
-          <p
-            v-if="formErrors.account_holder_name"
-            class="mt-1 text-xs text-rose-600"
-          >
-            {{ formErrors.account_holder_name }}
-          </p>
-        </div>
-
-        <div>
-          <label class="mb-2 block text-sm font-medium text-slate-700"
-            >Password</label
-          >
-          <div class="relative">
+        <template v-if="isEditMode && !isPayoutCash">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700"
+              >Nomor Rekening/E-Wallet</label
+            >
             <input
-              v-model="form.password"
-              :type="showPassword ? 'text' : 'password'"
-              :placeholder="
-                editingId
-                  ? 'Password (opsional saat edit)'
-                  : 'Password (opsional)'
-              "
+              v-model="form.account_number"
+              placeholder="Nomor rekening atau no HP e-wallet"
               class="w-full rounded-xl border border-slate-300 px-4 py-3"
             />
-            <button
-              type="button"
-              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
-              @click="showPassword = !showPassword"
+            <p
+              v-if="formErrors.account_number"
+              class="mt-1 text-xs text-rose-600"
             >
-              {{ showPassword ? "Hide" : "Show" }}
-            </button>
+              {{ formErrors.account_number }}
+            </p>
           </div>
-          <p v-if="formErrors.password" class="mt-1 text-xs text-rose-600">
-            {{ formErrors.password }}
-          </p>
-        </div>
 
-        <div class="md:col-span-2">
-          <label class="mb-2 block text-sm font-medium text-slate-700"
-            >Konfirmasi Password</label
-          >
-          <div class="relative">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700"
+              >Nama Pemilik Rekening</label
+            >
             <input
-              v-model="form.password_confirmation"
-              :type="showPasswordConfirmation ? 'text' : 'password'"
-              :placeholder="
-                editingId
-                  ? 'Konfirmasi password (jika diubah)'
-                  : 'Konfirmasi password (jika diisi)'
-              "
+              v-model="form.account_holder_name"
+              placeholder="Nama pemilik rekening"
               class="w-full rounded-xl border border-slate-300 px-4 py-3"
             />
-            <button
-              type="button"
-              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
-              @click="showPasswordConfirmation = !showPasswordConfirmation"
+            <p
+              v-if="formErrors.account_holder_name"
+              class="mt-1 text-xs text-rose-600"
             >
-              {{ showPasswordConfirmation ? "Hide" : "Show" }}
-            </button>
+              {{ formErrors.account_holder_name }}
+            </p>
           </div>
-          <p
-            v-if="formErrors.password_confirmation"
-            class="mt-1 text-xs text-rose-600"
-          >
-            {{ formErrors.password_confirmation }}
-          </p>
-        </div>
+        </template>
+
+        <template v-if="isEditMode">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700"
+              >Password</label
+            >
+            <div class="relative">
+              <input
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="Password (kosongkan jika tidak diubah)"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3"
+              />
+              <button
+                type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? "Hide" : "Show" }}
+              </button>
+            </div>
+            <p v-if="formErrors.password" class="mt-1 text-xs text-rose-600">
+              {{ formErrors.password }}
+            </p>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="mb-2 block text-sm font-medium text-slate-700"
+              >Konfirmasi Password</label
+            >
+            <div class="relative">
+              <input
+                v-model="form.password_confirmation"
+                :type="showPasswordConfirmation ? 'text' : 'password'"
+                placeholder="Konfirmasi password (jika diubah)"
+                class="w-full rounded-xl border border-slate-300 px-4 py-3"
+              />
+              <button
+                type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs text-slate-600"
+                @click="showPasswordConfirmation = !showPasswordConfirmation"
+              >
+                {{ showPasswordConfirmation ? "Hide" : "Show" }}
+              </button>
+            </div>
+            <p
+              v-if="formErrors.password_confirmation"
+              class="mt-1 text-xs text-rose-600"
+            >
+              {{ formErrors.password_confirmation }}
+            </p>
+          </div>
+        </template>
       </div>
       <div class="mt-4">
         <label class="mb-2 block text-sm font-medium text-slate-700"

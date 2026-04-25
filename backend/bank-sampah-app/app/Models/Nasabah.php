@@ -31,4 +31,9 @@ class Nasabah extends Model
     {
         return $this->hasMany(Transaksi::class);
     }
+
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class);
+    }
 }

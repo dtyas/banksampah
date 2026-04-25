@@ -72,7 +72,7 @@ class PembayaranController extends ApiController
                     return null;
                 }
 
-                if (! $transaksi->nasabah->account_number || ! $transaksi->nasabah->account_holder_name) {
+                if (strtolower($validated['metode']) !== 'cash' && (! $transaksi->nasabah->account_number || ! $transaksi->nasabah->account_holder_name)) {
                     throw new \RuntimeException('rekening');
                 }
 

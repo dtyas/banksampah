@@ -11,8 +11,96 @@ function isActive(name: string): boolean {
 }
 
 function canMenu(menuLabel: string): boolean {
-  return canAccessMenu(authStore.user, menuLabel);
+  return (
+    Array.isArray(authStore.user?.menu_access) &&
+    authStore.user.menu_access.includes(menuLabel)
+  );
 }
+
+// Daftar menu beserta icon dan route
+const menuList = [
+  {
+    label: "Dashboard",
+    routeName: "dashboard",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 12l8.485-8.485a2 2 0 012.828 0L22 12M5 10.5V19a2 2 0 002 2h10a2 2 0 002-2v-8.5"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Nasabah",
+    routeName: "nasabah",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12 0H7m10-9a4 4 0 11-8 0 4 4 0 018 0z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Kategori Sampah",
+    routeName: "kategori-sampah",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 8h10M7 12h10M7 16h7M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Sampah",
+    routeName: "sampah",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 7h10M7 12h10M7 17h10M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Transaksi",
+    routeName: "transaksi",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8c-2.21 0-4 .895-4 2s1.79 2 4 2 4 .895 4 2-1.79 2-4 2m0-10v12m9-6a9 9 0 11-18 0 9 9 0 0118 0z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Pembayaran",
+    routeName: "pembayaran",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 9V7a5 5 0 00-10 0v2M6 9h12l-1 10H7L6 9zm6 3v4m-2-2h4\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Pencairan Saldo",
+    routeName: "pencairan-saldo",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8c-2.21 0-4 .895-4 2s1.79 2 4 2 4 .895 4 2-1.79 2-4 2m0-10v12m8-6a8 8 0 11-16 0 8 8 0 0116 0z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "User",
+    routeName: "user",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12 0H7m10-9a4 4 0 11-8 0 4 4 0 018 0z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+  {
+    label: "Laporan",
+    routeName: "laporan",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 17v-6m4 6V7m4 10v-3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z\"/></svg>`,
+    iconWrapperClass:
+      "flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100",
+    activeClass: "bg-sky-50 text-sky-700",
+    inactiveClass: "text-slate-700 hover:bg-slate-100",
+  },
+];
 </script>
 
 <template>
@@ -25,290 +113,34 @@ function canMenu(menuLabel: string): boolean {
       >
         Bank Sampah
       </h1>
-      <p class="mt-2 text-lg font-semibold text-slate-900">Admin Dashboard</p>
+      <!-- tampilkan role user yang login -->
+      <p class="mt-2 text-lg font-semibold text-slate-900">
+        {{
+          authStore.user?.role
+            ? authStore.user.role
+                .replace("_", " ")
+                .replace(/\b\w/g, (c) => c.toUpperCase()) + " Dashboard"
+            : "Dashboard"
+        }}
+      </p>
     </div>
 
     <nav class="px-5 pb-6">
       <ul class="space-y-2">
-        <li v-if="canMenu('Dashboard')">
-          <router-link
-            :to="{ name: 'dashboard' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('dashboard')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100"
+        <template v-for="menu in menuList" :key="menu.label">
+          <li v-if="canMenu(menu.label)">
+            <router-link
+              :to="{ name: menu.routeName }"
+              class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
+              :class="
+                isActive(menu.routeName) ? menu.activeClass : menu.inactiveClass
+              "
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M3 12l8.485-8.485a2 2 0 012.828 0L22 12M5 10.5V19a2 2 0 002 2h10a2 2 0 002-2v-8.5"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-semibold">Dashboard</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Nasabah')">
-          <router-link
-            :to="{ name: 'nasabah' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('nasabah')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12 0H7m10-9a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Nasabah</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Kategori Sampah')">
-          <router-link
-            :to="{ name: 'kategori-sampah' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('kategori-sampah')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M7 8h10M7 12h10M7 16h7M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Kategori Sampah</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Sampah')">
-          <router-link
-            :to="{ name: 'sampah' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('sampah')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M7 7h10M7 12h10M7 17h10M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Sampah</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Transaksi')">
-          <router-link
-            :to="{ name: 'transaksi' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('transaksi')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M12 8c-2.21 0-4 .895-4 2s1.79 2 4 2 4 .895 4 2-1.79 2-4 2m0-10v12m9-6a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Transaksi</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Pembayaran')">
-          <router-link
-            :to="{ name: 'pembayaran' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('pembayaran')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M17 9V7a5 5 0 00-10 0v2M6 9h12l-1 10H7L6 9zm6 3v4m-2-2h4"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Pembayaran</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Pencairan Saldo')">
-          <router-link
-            :to="{ name: 'pencairan-saldo' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('pencairan-saldo')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M12 8c-2.21 0-4 .895-4 2s1.79 2 4 2 4 .895 4 2-1.79 2-4 2m0-10v12m8-6a8 8 0 11-16 0 8 8 0 0116 0z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Pencairan Saldo</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('User')">
-          <router-link
-            :to="{ name: 'user' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('user')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12 0H7m10-9a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">User</span>
-          </router-link>
-        </li>
-        <li v-if="canMenu('Laporan')">
-          <router-link
-            :to="{ name: 'laporan' }"
-            class="nav-link flex items-center gap-4 rounded-[22px] px-5 py-3.5 transition"
-            :class="
-              isActive('laporan')
-                ? 'bg-sky-50 text-sky-700'
-                : 'text-slate-700 hover:bg-slate-100'
-            "
-          >
-            <span
-              class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-slate-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.8"
-                  d="M9 17v-6m4 6V7m4 10v-3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-            </span>
-            <span class="text-[15px] font-medium">Laporan</span>
-          </router-link>
-        </li>
+              <span :class="menu.iconWrapperClass" v-html="menu.icon"></span>
+              <span class="text-[15px] font-medium">{{ menu.label }}</span>
+            </router-link>
+          </li>
+        </template>
       </ul>
     </nav>
   </aside>

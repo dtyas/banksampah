@@ -22,7 +22,9 @@ const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
     withCredentials: import.meta.env.VITE_USE_COOKIE_AUTH === 'true',
     headers: {
-        Accept: 'application/json',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json', // Tambahkan ini
+        'X-Requested-With': 'XMLHttpRequest', // Tambahkan ini untuk membantu Laravel mengenali AJAX
     },
 });
 

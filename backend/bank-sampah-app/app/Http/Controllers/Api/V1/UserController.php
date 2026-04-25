@@ -11,6 +11,7 @@ use App\Services\AccessControlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends ApiController
 {
@@ -38,18 +39,17 @@ class UserController extends ApiController
     {
         $validated = $request->validated();
 
+        // Ambil akses dari request atau default kosong
         $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
-        
-        if (($validated['role'] ?? null) === 'nasabah') {
-            $menuAccess = ['Kategori Sampah', 'Sampah'];
+
+        // Otomatisasi hanya jika data tidak dikirim secara manual atau role adalah nasabah
+        if ($validated['role'] === 'nasabah') {
+            $menuAccess = ['Kategori Sampah', 'Sampah', 'Pencairan Saldo'];
             $operationalAccess = ['Ajukan Pencairan Saldo'];
-        } elseif (($validated['role'] ?? null) === 'super_admin') {
-            // Super admin mendapat semua akses secara default
-            $menuAccess = $this->accessControlService::MENU_OPTIONS;
-            $operationalAccess = $this->accessControlService::OPERATIONAL_OPTIONS;
-        } elseif (($validated['role'] ?? null) === 'petugas') {
-            // Petugas mendapat semua akses secara default
+        }
+        // Untuk super_admin/petugas, jika di request kosong, baru kita beri full akses
+        elseif (empty($validated['menu_access'])) {
             $menuAccess = $this->accessControlService::MENU_OPTIONS;
             $operationalAccess = $this->accessControlService::OPERATIONAL_OPTIONS;
         }
@@ -58,7 +58,7 @@ class UserController extends ApiController
             $user = User::query()->create([
                 'nama' => $validated['nama'],
                 'email' => $validated['email'],
-                'password' => $validated['password'],
+                'password' => Hash::make($validated['password']),
                 'role' => $validated['role'],
                 'status' => $validated['status'] ?? 'Aktif',
                 'menu_access' => $menuAccess,
@@ -77,50 +77,61 @@ class UserController extends ApiController
     public function show(int $id): JsonResponse
     {
         $user = User::query()->findOrFail($id);
-
         return $this->successResponse('Detail user berhasil diambil', new UserResource($user));
     }
 
     public function update(UserUpdateRequest $request, int $id): JsonResponse
     {
         $user = User::query()->findOrFail($id);
-
         $validated = $request->validated();
 
+        // 1. Tangani Password (hanya update jika diisi)
+        if (!empty($validated['password'])) {
+            $validated['password'] = Hash::make($validated['password']);
+        } else {
+            unset($validated['password']);
+        }
+
+        // 2. Normalisasi Akses (Prioritaskan apa yang dikirim dari Frontend)
         if (array_key_exists('menu_access', $validated)) {
-            $validated['menu_access'] = $this->accessControlService->normalizeMenuAccess($validated['menu_access']);
+            $validated['menu_access'] = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? []);
         }
 
         if (array_key_exists('operational_access', $validated)) {
-            $validated['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access']);
+            $validated['operational_access'] = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? []);
         }
 
-        if (($validated['role'] ?? null) === 'nasabah') {
-            $validated['menu_access'] = ['Kategori Sampah', 'Sampah'];
-            $validated['operational_access'] = ['Ajukan Pencairan Saldo'];
-        } elseif (($validated['role'] ?? null) === 'super_admin') {
-            // Super admin mendapat semua akses secara default jika tidak dikirim
-            if (!array_key_exists('menu_access', $validated)) {
+        // 3. Logika Override: Jangan timpa jika admin mengirimkan data akses spesifik
+        // Kita hanya jalankan otomasi role jika input menu_access benar-benar tidak ada di request
+        $role = $validated['role'] ?? $user->role;
+
+        if (!array_key_exists('menu_access', $validated)) {
+            if ($role === 'nasabah') {
+                $validated['menu_access'] = ['Kategori Sampah', 'Sampah', 'Pencairan Saldo'];
+            } elseif ($role === 'super_admin' || $role === 'petugas') {
                 $validated['menu_access'] = $this->accessControlService::MENU_OPTIONS;
             }
-            if (!array_key_exists('operational_access', $validated)) {
-                $validated['operational_access'] = $this->accessControlService::OPERATIONAL_OPTIONS;
-            }
-        } elseif (($validated['role'] ?? null) === 'petugas') {
-            // Petugas mendapat semua akses secara default jika tidak dikirim
-            if (!array_key_exists('menu_access', $validated)) {
-                $validated['menu_access'] = $this->accessControlService::MENU_OPTIONS;
-            }
-            if (!array_key_exists('operational_access', $validated)) {
+        }
+
+        if (!array_key_exists('operational_access', $validated)) {
+            if ($role === 'nasabah') {
+                $validated['operational_access'] = ['Ajukan Pencairan Saldo'];
+            } elseif ($role === 'super_admin' || $role === 'petugas') {
                 $validated['operational_access'] = $this->accessControlService::OPERATIONAL_OPTIONS;
             }
         }
 
         DB::transaction(function () use ($user, $validated): void {
-            $user->fill($validated);
-            $user->save();
+            // Gunakan update() untuk memastikan data masuk ke DB
+            $user->update($validated);
 
-            $this->accessControlService->syncUserAccess($user);
+            // Kirim parameter ke syncUserAccess agar sinkron dengan data terbaru
+            $this->accessControlService->syncUserAccess(
+                $user,
+                $validated['menu_access'] ?? $user->menu_access,
+                $validated['operational_access'] ?? $user->operational_access
+            );
+
             $this->syncNasabahProfile($user);
         });
 
@@ -137,7 +148,6 @@ class UserController extends ApiController
                 $user->syncRoles([]);
                 $user->syncPermissions([]);
                 $user->update(['status' => 'Inactive']);
-
                 return;
             }
 
@@ -153,7 +163,6 @@ class UserController extends ApiController
     {
         if ($user->role !== 'nasabah') {
             Nasabah::query()->where('user_id', $user->id)->delete();
-
             return;
         }
 

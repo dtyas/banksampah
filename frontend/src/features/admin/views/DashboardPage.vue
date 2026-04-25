@@ -10,6 +10,7 @@ import {
 import Chart from "chart.js/auto";
 import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
+import { isFeatureEnabled } from "../../../config/features";
 
 type Summary = {
   total_nasabah: number;
@@ -90,7 +91,7 @@ async function loadSummary() {
 }
 
 async function loadBalance() {
-  if (!isStaff.value) {
+  if (!isStaff.value || !isFeatureEnabled("enableXenditDisbursement")) {
     return;
   }
 
@@ -330,21 +331,24 @@ onBeforeUnmount(() => {
             <h3 class="mt-4 text-3xl font-bold text-slate-900">
               {{ formatCurrency(summary?.total_harga ?? null) }}
             </h3>
-            <p class="mt-2 text-xs text-amber-600">
-              {{
-                balanceError
-                  ? "Saldo Xendit tidak tersedia"
-                  : isStaff
-                    ? balanceLoading
-                      ? "Memuat saldo Xendit..."
-                      : `Saldo Xendit ${formatCurrency(balance)}`
-                    : "Perlu verifikasi transaksi"
-              }}
-            </p>
-            <p class="mt-2 text-xs text-slate-500">
-              Pencairan berhasil:
-              {{ formatCurrency(summary?.total_pembayaran_berhasil ?? null) }}
-            </p>
+            <!-- do not remove , future use -->
+            <template v-if="isFeatureEnabled('enableXenditDisbursement')">
+              <p class="mt-2 text-xs text-amber-600">
+                {{
+                  balanceError
+                    ? "Saldo Xendit tidak tersedia"
+                    : isStaff
+                      ? balanceLoading
+                        ? "Memuat saldo Xendit..."
+                        : `Saldo Xendit ${formatCurrency(balance)}`
+                      : "Perlu verifikasi transaksi"
+                }}
+              </p>
+              <p class="mt-2 text-xs text-slate-500">
+                Pencairan berhasil:
+                {{ formatCurrency(summary?.total_pembayaran_berhasil ?? null) }}
+              </p>
+            </template>
           </div>
           <div
             class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-600"

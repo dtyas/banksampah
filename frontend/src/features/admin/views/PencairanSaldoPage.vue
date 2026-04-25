@@ -4,6 +4,7 @@ import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { isFeatureEnabled } from "../../../config/features";
 
 type PencairanRow = {
   id: number;
@@ -72,16 +73,29 @@ const accountForm = ref({
   account_number: "",
   account_holder_name: "",
 });
-const channelOptions = [
-  "ID_BCA",
-  "ID_BNI",
-  "ID_BRI",
-  "ID_MANDIRI",
-  "ID_OVO",
-  "ID_DANA",
-  "ID_GOPAY",
-];
-const methodOptions = ["Cash", ...channelOptions];
+
+const xenditChannelOptions = computed(() => {
+  if (isFeatureEnabled("enableXenditDisbursement")) {
+    return [
+      "ID_BCA",
+      "ID_BNI",
+      "ID_BRI",
+      "ID_MANDIRI",
+      "ID_OVO",
+      "ID_DANA",
+      "ID_GOPAY",
+    ];
+  }
+  return [];
+});
+
+const methodOptions = computed(() => {
+  const base = ["Cash"];
+  if (isFeatureEnabled("enableXenditDisbursement")) {
+    base.push(...xenditChannelOptions.value);
+  }
+  return base;
+});
 let refreshTimer: number | null = null;
 
 const nasabahRows = computed(() => ledger.value?.pencairan_terakhir ?? []);
@@ -96,16 +110,20 @@ const {
 
 function isDisbursementMethod(metode?: string): boolean {
   const value = (metode ?? "").toLowerCase();
-
-  return [
+  const baseKeywords = ["cash", "pencairan"];
+  const xenditKeywords = [
     "wallet",
     "transfer",
     "bank",
     "disbursement",
     "xendit",
-    "pencairan",
-    "cash",
-  ].some((keyword) => value.includes(keyword));
+  ];
+
+  const allKeywords = isFeatureEnabled("enableXenditDisbursement")
+    ? [...baseKeywords, ...xenditKeywords]
+    : baseKeywords;
+
+  return allKeywords.some((keyword) => value.includes(keyword));
 }
 
 function isCashMethod(metode?: string): boolean {
@@ -341,12 +359,7 @@ onUnmounted(() => {
           <h3 class="mt-4 text-3xl font-bold text-slate-900">
             <span v-if="ledgerLoading">...</span>
             <span v-else
-              >Rp
-              {{
-                Number(ledger?.saldo?.saldo_tersedia || 0).toLocaleString(
-                  "id-ID",
-                )
-              }}</span
+              >Rp {{ Number(ledger?.saldo || 0).toLocaleString("id-ID") }}</span
             >
           </h3>
           <p class="mt-2 text-xs text-emerald-600">
@@ -426,6 +439,7 @@ onUnmounted(() => {
                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 required
               >
+                <option value="">Pilih Metode Pencairan</option>
                 <option
                   v-for="option in methodOptions"
                   :key="option"
@@ -436,15 +450,19 @@ onUnmounted(() => {
               </select>
               <p class="mt-2 text-xs text-slate-500">
                 {{
-                  form.metode.toLowerCase().includes("cash")
-                    ? "Cash diambil langsung ke petugas bank sampah."
-                    : "Dana dikirim via Xendit ke rekening/e-wallet terdaftar."
+                  isFeatureEnabled("enableXenditDisbursement") &&
+                  !form.metode.toLowerCase().includes("cash")
+                    ? "Dana dikirim via Xendit ke rekening/e-wallet terdaftar."
+                    : "Cash diambil langsung ke petugas bank sampah."
                 }}
               </p>
             </div>
 
             <div
-              v-if="!form.metode.toLowerCase().includes('cash')"
+              v-if="
+                isFeatureEnabled('enableXenditDisbursement') &&
+                !form.metode.toLowerCase().includes('cash')
+              "
               class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
             >
               <div class="flex items-center justify-between">
@@ -478,7 +496,7 @@ onUnmounted(() => {
                   >
                     <option value="">Pilih channel</option>
                     <option
-                      v-for="option in channelOptions"
+                      v-for="option in xenditChannelOptions"
                       :key="option"
                       :value="option"
                     >
@@ -600,7 +618,9 @@ onUnmounted(() => {
               :key="item.id"
               class="border-t border-slate-200"
             >
-              <td class="px-5 py-4">{{ (nasabahPage - 1) * 10 + index + 1 }}</td>
+              <td class="px-5 py-4">
+                {{ (nasabahPage - 1) * 10 + index + 1 }}
+              </td>
               <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
               <td class="px-5 py-4">
                 Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}
@@ -714,7 +734,9 @@ onUnmounted(() => {
               :key="item.id"
               class="border-t border-slate-200"
             >
-              <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
+              <td class="px-5 py-4">
+                {{ (currentPage - 1) * 10 + index + 1 }}
+              </td>
               <td class="px-5 py-4">{{ item.transaksi_id }}</td>
               <td class="px-5 py-4">
                 Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}
@@ -851,13 +873,20 @@ onUnmounted(() => {
             <label class="mb-2 block text-sm font-medium text-slate-700">
               Metode
             </label>
-            <input
+            <select
               v-model="form.metode"
-              type="text"
-              placeholder="Contoh: Cash, BCA, DANA, OVO"
-              class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+              class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
               required
-            />
+            >
+              <option value="">Pilih Metode Pencairan</option>
+              <option
+                v-for="option in methodOptions"
+                :key="option"
+                :value="option"
+              >
+                {{ option }}
+              </option>
+            </select>
           </div>
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700">

@@ -34,17 +34,17 @@ class NasabahController extends ApiController
     {
         $validated = $request->validated();
 
-        $menuAccess = $this->accessControlService->normalizeMenuAccess($validated['menu_access'] ?? ['Kategori Sampah', 'Sampah', 'Pencairan Saldo']);
-        $operationalAccess = $this->accessControlService->normalizeOperationalAccess($validated['operational_access'] ?? ['Ajukan Pencairan Saldo']);
+        $menuAccess = ['Kategori Sampah', 'Sampah', 'Pencairan Saldo'];
+        $operationalAccess = ['Ajukan Pencairan Saldo'];
 
         $nasabah = DB::transaction(function () use ($validated, $menuAccess, $operationalAccess) {
             $generatedEmail = Str::slug($validated['nama'], '.') . '.' . now()->timestamp . '@nasabah.local';
             $user = User::query()->create([
                 'nama' => $validated['nama'],
-                'email' => $validated['email'] ?? $generatedEmail,
-                'password' => $validated['password'] ?? 'Nasabah123!',
+                'email' => $generatedEmail,
+                'password' => bcrypt('Nasabah123!'),
                 'role' => 'nasabah',
-                'status' => $validated['status'] ?? 'Aktif',
+                'status' => 'Aktif',
                 'menu_access' => $menuAccess,
                 'operational_access' => $operationalAccess,
             ]);
@@ -56,9 +56,6 @@ class NasabahController extends ApiController
                 'nama' => $validated['nama'],
                 'alamat' => $validated['alamat'] ?? null,
                 'no_hp' => $validated['no_hp'] ?? null,
-                'payout_channel' => $validated['payout_channel'] ?? null,
-                'account_number' => $validated['account_number'] ?? null,
-                'account_holder_name' => $validated['account_holder_name'] ?? null,
             ])->load('user');
         });
 
@@ -147,8 +144,24 @@ class NasabahController extends ApiController
         if (! $nasabah) {
             return $this->errorResponse('Profil nasabah tidak ditemukan', null, 404);
         }
-        $saldo = $this->pembayaranService->calculateSaldoNasabah($nasabah->id);
 
+        // 1. Ambil saldo dari logika perhitungan lama (Legacy)
+        $saldoLegacy = $this->pembayaranService->calculateSaldoNasabah($nasabah->id);
+
+        /**
+         * 2. SINKRONISASI KE WALLET
+         * Kita simpan/update hasil hitungan lama ke dalam tabel wallets.
+         * Ini memastikan tabel wallets selalu sinkron dengan kenyataan transaksi saat ini.
+         */
+        $wallet = \App\Models\Wallet::updateOrCreate(
+            ['nasabah_id' => $nasabah->id],
+            [
+                'saldo' => $saldoLegacy['saldo_tersedia'] ?? 0,
+                'meta' => json_encode($saldoLegacy)
+            ]
+        );
+
+        // 3. Ambil riwayat transaksi & pembayaran (Logika tetap sama)
         $transaksi = $nasabah->transaksi()
             ->latest('tanggal')
             ->limit(10)
@@ -162,7 +175,7 @@ class NasabahController extends ApiController
 
         return $this->successResponse('Ledger nasabah berhasil diambil', [
             'nasabah' => new NasabahResource($nasabah->loadMissing('user')),
-            'saldo' => $saldo,
+            'saldo' => $wallet->saldo, // Sekarang mengambil angka dari tabel Wallets
             'transaksi_terakhir' => $transaksi,
             'pencairan_terakhir' => $pembayaran,
         ]);

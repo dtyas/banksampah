@@ -40,10 +40,12 @@ const searchTerm = ref("");
 const filterStart = ref("");
 const filterEnd = ref("");
 const statusFilter = ref("");
+
+// UPDATE: Nilai default metode diubah ke "Cash"
 const form = ref({
   transaksi_id: "",
   jumlah: "",
-  metode: "",
+  metode: "Cash",
   status: "menunggu",
   tanggal: new Date().toISOString().slice(0, 10),
 });
@@ -172,14 +174,15 @@ async function submitForm() {
     await api.post("/pembayaran", {
       transaksi_id: Number(form.value.transaksi_id),
       jumlah: Number(form.value.jumlah || 0),
-      metode: form.value.metode.trim(),
+      metode: form.value.metode,
       status: form.value.status,
       tanggal: form.value.tanggal,
     });
+    // Reset ke default "Cash" setelah simpan
     form.value = {
       transaksi_id: "",
       jumlah: "",
-      metode: "",
+      metode: "Cash",
       status: "menunggu",
       tanggal: new Date().toISOString().slice(0, 10),
     };
@@ -188,6 +191,10 @@ async function submitForm() {
   } finally {
     saving.value = false;
   }
+}
+
+function isCashMethod(metode?: string): boolean {
+  return (metode ?? "").toLowerCase() === "cash";
 }
 
 async function updateStatus(item: Pembayaran, status: string) {
@@ -208,6 +215,16 @@ async function updateStatus(item: Pembayaran, status: string) {
   } finally {
     processingId.value = null;
   }
+}
+
+async function approvePayment(item: Pembayaran) {
+  if (!canVerifyPayment.value) {
+    return;
+  }
+
+  // Cash langsung berhasil, non-Cash jadi diverifikasi
+  const targetStatus = isCashMethod(item.metode) ? "berhasil" : "diverifikasi";
+  await updateStatus(item, targetStatus);
 }
 </script>
 
@@ -331,11 +348,17 @@ async function updateStatus(item: Pembayaran, status: string) {
             <td class="px-5 py-4">
               <button
                 v-if="item.status === 'menunggu' && canVerifyPayment"
-                class="rounded-lg bg-amber-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                class="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
                 :disabled="processingId === item.id"
-                @click="updateStatus(item, 'diverifikasi')"
+                @click="approvePayment(item)"
               >
-                {{ processingId === item.id ? "Memproses..." : "Verifikasi" }}
+                {{
+                  processingId === item.id
+                    ? "Memproses..."
+                    : isCashMethod(item.metode)
+                      ? "Setujui"
+                      : "Verifikasi"
+                }}
               </button>
               <button
                 v-if="
@@ -436,18 +459,21 @@ async function updateStatus(item: Pembayaran, status: string) {
             required
           />
         </div>
+
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">
             Metode
           </label>
-          <input
+          <select
             v-model="form.metode"
-            type="text"
-            placeholder="Contoh: BCA, OVO, DANA"
             class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             required
-          />
+          >
+            <option value="">Pilih Metode Pembayaran</option>
+            <option value="Cash">Cash</option>
+          </select>
         </div>
+
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">
             Status

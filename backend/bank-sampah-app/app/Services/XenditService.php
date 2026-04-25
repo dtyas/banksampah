@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Arr;
+use Log;
 
 /**
  * Class XenditService
@@ -45,22 +46,25 @@ class XenditService
     ): array {
         $idempotencyKey = $idempotencyKey ?: $referenceId;
 
+        $data = [
+            'reference_id' => $referenceId,
+            'channel_code' => $channelCode,
+            'channel_properties' => [
+                'account_number' => $accountNumber,
+                'account_holder_name' => $accountHolderName,
+            ],
+            'amount' => $amount,
+            'description' => $description ?? 'Pencairan saldo nasabah',
+            'currency' => $currency,
+        ];
+
+        Log::info('Mengirim payout ke Xendit', $data);
         $response = $this->authService
             ->request()
             ->withHeaders([
                 'Idempotency-key' => $idempotencyKey,
             ])
-            ->post($this->baseUrl . '/v2/payouts', [
-                'reference_id' => $referenceId,
-                'channel_code' => $channelCode,
-                'channel_properties' => [
-                    'account_number' => $accountNumber,
-                    'account_holder_name' => $accountHolderName,
-                ],
-                'amount' => $amount,
-                'description' => $description ?? 'Pencairan saldo nasabah',
-                'currency' => $currency,
-            ]);
+            ->post($this->baseUrl . '/v2/payouts', $data);
 
         if (! $response->successful()) {
             throw new \Exception('Gagal mengirim payout ke Xendit.');
