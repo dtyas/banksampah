@@ -9,6 +9,8 @@ interface TransaksiRepositoryInterface
 {
     public function allWithRelations(): Collection;
 
+    public function allByNasabahWithRelations(int $nasabahId): Collection;
+
     public function findWithRelationsOrFail(int $id): Transaksi;
 
     public function createWithItems(array $data): Transaksi;

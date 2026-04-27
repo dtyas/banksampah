@@ -1,10 +1,21 @@
 <script setup lang="ts">
+import { ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "../../../stores/auth";
 import { canAccessMenu } from "../../auth/access-control";
 
 const route = useRoute();
 const authStore = useAuthStore();
+const isOpen = ref(false);
+
+function toggleSidebar() {
+  isOpen.value = !isOpen.value;
+}
+
+// Tutup sidebar otomatis saat berpindah halaman di mobile
+watch(route, () => {
+  isOpen.value = false;
+});
 
 function isActive(name: string): boolean {
   return route.name === name;
@@ -104,8 +115,62 @@ const menuList = [
 </script>
 
 <template>
+  <!-- Hamburger Button (Mobile Only) -->
+  <div
+    class="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 lg:hidden"
+  >
+    <h1 class="text-xl font-bold tracking-wider text-emerald-500">
+      Bank Sampah
+    </h1>
+    <button
+      type="button"
+      class="rounded-xl bg-slate-50 p-2 text-slate-600 ring-1 ring-slate-200"
+      @click="toggleSidebar"
+    >
+      <svg
+        v-if="!isOpen"
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 6h16M4 12h16m-7 6h7"
+        />
+      </svg>
+      <svg
+        v-else
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Mobile Backdrop -->
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+    @click="toggleSidebar"
+  ></div>
+
+  <!-- Sidebar Content -->
   <aside
-    class="w-full border-b border-slate-200 bg-white lg:min-h-screen lg:w-[300px] lg:border-b-0 lg:border-r"
+    class="fixed inset-y-0 left-0 z-50 w-[280px] transform border-r border-slate-200 bg-white transition-transform duration-300 lg:static lg:w-[300px] lg:translate-x-0"
+    :class="isOpen ? 'translate-x-0' : '-translate-x-full'"
   >
     <div class="px-6 py-7">
       <h1

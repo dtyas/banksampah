@@ -8,6 +8,7 @@ import { usePagination } from "../../../composables/usePagination";
 type Pembayaran = {
   id: number;
   transaksi_id: number;
+  nasabah_id?: number | null;
   jumlah: number;
   metode: string;
   status: string;
@@ -18,16 +19,28 @@ type Pembayaran = {
     nama: string;
     email: string;
   } | null;
+  nasabah?: { id?: number; nama?: string } | null;
+  transaksi?: {
+    id?: number;
+    nasabah_id?: number;
+    nasabah?: { id?: number; nama?: string } | null;
+  } | null;
+};
+
+type Nasabah = {
+  id: number;
+  nama: string;
 };
 
 type TransaksiOption = {
   id: number;
   nasabah?: { nama?: string };
+  nasabah_id?: number;
   total_harga?: number;
 };
 
 const rows = ref<Pembayaran[]>([]);
-const transaksiOptions = ref<TransaksiOption[]>([]);
+const nasabahOptions = ref<Nasabah[]>([]);
 const authStore = useAuthStore();
 const canCreate = computed(() => canDoOperation(authStore.user, "create"));
 const canVerifyPayment = computed(() =>
@@ -41,14 +54,67 @@ const filterStart = ref("");
 const filterEnd = ref("");
 const statusFilter = ref("");
 
-// UPDATE: Nilai default metode diubah ke "Cash"
 const form = ref({
+  nasabah_id: "",
   transaksi_id: "",
   jumlah: "",
   metode: "Cash",
   status: "menunggu",
   tanggal: new Date().toISOString().slice(0, 10),
 });
+
+const nasabahSaldo = ref<number | null>(null);
+const nasabahSaldoLoading = ref(false);
+const nasabahSaldoError = ref("");
+
+// State transaksi terbaru nasabah (auto-picked)
+const latestTransaksi = ref<TransaksiOption | null>(null);
+const latestTransaksiLoading = ref(false);
+const latestTransaksiError = ref("");
+
+async function fetchNasabahSaldo() {
+  nasabahSaldo.value = null;
+  nasabahSaldoError.value = "";
+  const id = form.value.nasabah_id;
+  if (!id) return;
+  nasabahSaldoLoading.value = true;
+  try {
+    const res = await api.get(`/nasabah/${id}/saldo`);
+    nasabahSaldo.value = res.data?.data?.saldo ?? null;
+  } catch {
+    nasabahSaldo.value = null;
+    nasabahSaldoError.value = "Gagal mengambil saldo nasabah";
+  } finally {
+    nasabahSaldoLoading.value = false;
+  }
+}
+
+async function fetchLatestTransaksiNasabah(nasabahId: string) {
+  latestTransaksi.value = null;
+  latestTransaksiError.value = "";
+  form.value.transaksi_id = "";
+  if (!nasabahId) return;
+  latestTransaksiLoading.value = true;
+  try {
+    const res = await api.get(`/transaksi?nasabah_id=${nasabahId}`);
+    const list: TransaksiOption[] =
+      res.data?.data?.data ?? res.data?.data ?? [];
+    if (list.length > 0) {
+      // Ambil yang id paling besar (terbaru)
+      const latest = list.reduce((prev, cur) =>
+        cur.id > prev.id ? cur : prev,
+      );
+      latestTransaksi.value = latest;
+      form.value.transaksi_id = String(latest.id);
+    } else {
+      latestTransaksiError.value = "Nasabah belum memiliki transaksi";
+    }
+  } catch {
+    latestTransaksiError.value = "Gagal mengambil transaksi nasabah";
+  } finally {
+    latestTransaksiLoading.value = false;
+  }
+}
 
 const filteredRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase();
@@ -57,7 +123,17 @@ const filteredRows = computed(() => {
   const status = statusFilter.value.trim().toLowerCase();
 
   return rows.value.filter((item) => {
-    const haystack = [item.transaksi_id, item.metode, item.status, item.tanggal]
+    const nasabahNama =
+      item.nasabah?.nama ||
+      item.transaksi?.nasabah?.nama ||
+      "";
+    const haystack = [
+      item.transaksi_id,
+      item.metode,
+      item.status,
+      item.tanggal,
+      nasabahNama,
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -150,19 +226,36 @@ async function loadPembayaran() {
   rows.value = response.data?.data?.data ?? response.data?.data ?? [];
 }
 
-async function loadTransaksi() {
-  const response = await api.get("/transaksi");
-  transaksiOptions.value =
-    response.data?.data?.data ?? response.data?.data ?? [];
+async function loadNasabah() {
+  const response = await api.get("/nasabah");
+  nasabahOptions.value = response.data?.data?.data ?? response.data?.data ?? [];
 }
 
 onMounted(async () => {
-  await Promise.all([loadPembayaran(), loadTransaksi()]);
+  await Promise.all([loadPembayaran(), loadNasabah()]);
 });
 
 watch([searchTerm, filterStart, filterEnd, statusFilter], () => {
   setPage(1);
 });
+
+watch(
+  () => form.value.nasabah_id,
+  async (val) => {
+    form.value.transaksi_id = "";
+    latestTransaksi.value = null;
+    latestTransaksiError.value = "";
+    if (val) {
+      await Promise.all([
+        fetchNasabahSaldo(),
+        fetchLatestTransaksiNasabah(val),
+      ]);
+    } else {
+      nasabahSaldo.value = null;
+      nasabahSaldoError.value = "";
+    }
+  },
+);
 
 async function submitForm() {
   if (!form.value.transaksi_id) {
@@ -178,14 +271,15 @@ async function submitForm() {
       status: form.value.status,
       tanggal: form.value.tanggal,
     });
-    // Reset ke default "Cash" setelah simpan
     form.value = {
+      nasabah_id: "",
       transaksi_id: "",
       jumlah: "",
       metode: "Cash",
       status: "menunggu",
       tanggal: new Date().toISOString().slice(0, 10),
     };
+    nasabahSaldo.value = null;
     showForm.value = false;
     await loadPembayaran();
   } finally {
@@ -195,6 +289,10 @@ async function submitForm() {
 
 function isCashMethod(metode?: string): boolean {
   return (metode ?? "").toLowerCase() === "cash";
+}
+
+function getNasabahNama(item: Pembayaran): string {
+  return item.nasabah?.nama || item.transaksi?.nasabah?.nama || "-";
 }
 
 async function updateStatus(item: Pembayaran, status: string) {
@@ -274,7 +372,7 @@ async function approvePayment(item: Pembayaran) {
           <input
             v-model="searchTerm"
             type="text"
-            placeholder="Transaksi atau metode"
+            placeholder="Nama nasabah atau metode"
             class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           />
         </label>
@@ -312,6 +410,7 @@ async function approvePayment(item: Pembayaran) {
         <thead class="bg-slate-50">
           <tr>
             <th class="px-5 py-4">No</th>
+            <th class="px-5 py-4">Nasabah</th>
             <th class="px-5 py-4">Transaksi</th>
             <th class="px-5 py-4">Jumlah</th>
             <th class="px-5 py-4">Metode</th>
@@ -329,7 +428,10 @@ async function approvePayment(item: Pembayaran) {
             class="border-t border-slate-200"
           >
             <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
-            <td class="px-5 py-4">{{ item.transaksi_id }}</td>
+            <td class="px-5 py-4 font-medium text-slate-700">
+              {{ getNasabahNama(item) }}
+            </td>
+            <td class="px-5 py-4">#{{ item.transaksi_id }}</td>
             <td class="px-5 py-4">
               Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}
             </td>
@@ -379,7 +481,7 @@ async function approvePayment(item: Pembayaran) {
             v-if="filteredRows.length === 0"
             class="border-t border-slate-200"
           >
-            <td colspan="7" class="px-5 py-4">
+            <td colspan="10" class="px-5 py-4">
               <div
                 class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
                 role="alert"
@@ -426,25 +528,55 @@ async function approvePayment(item: Pembayaran) {
       class="rounded-[24px] border border-emerald-100 bg-emerald-50/40 p-5"
     >
       <form class="grid gap-4 lg:grid-cols-2" @submit.prevent="submitForm">
-        <div>
+        <!-- Pilih Nasabah -->
+        <div class="lg:col-span-2">
           <label class="mb-2 block text-sm font-medium text-slate-700">
-            Transaksi
+            Nasabah
           </label>
           <select
-            v-model="form.transaksi_id"
+            v-model="form.nasabah_id"
             class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             required
           >
-            <option value="" disabled>Pilih transaksi</option>
+            <option value="" disabled>Pilih nasabah</option>
             <option
-              v-for="item in transaksiOptions"
+              v-for="item in nasabahOptions"
               :key="item.id"
               :value="item.id"
             >
-              #{{ item.id }} - {{ item.nasabah?.nama || "Nasabah" }}
+              {{ item.nama }}
             </option>
           </select>
+          <!-- Saldo nasabah -->
+          <div v-if="form.nasabah_id" class="mt-2 text-xs">
+            <span v-if="nasabahSaldoLoading">Mengambil saldo...</span>
+            <span v-else-if="nasabahSaldoError" class="text-rose-600">{{
+              nasabahSaldoError
+            }}</span>
+            <span
+              v-else-if="nasabahSaldo !== null"
+              class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 font-semibold text-emerald-700"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-emerald-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              Saldo:
+              <b>Rp {{ Number(nasabahSaldo).toLocaleString("id-ID") }}</b>
+            </span>
+          </div>
         </div>
+
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">
             Jumlah

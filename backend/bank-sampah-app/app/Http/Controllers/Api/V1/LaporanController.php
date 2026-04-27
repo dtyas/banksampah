@@ -15,6 +15,14 @@ class LaporanController extends ApiController
     {
         $query = $this->filteredTransaksiQuery($request);
 
+        $topSampah = \App\Models\DetailTransaksi::query()
+            ->whereIn('transaksi_id', (clone $query)->pluck('id'))
+            ->selectRaw('sampah_id, SUM(berat) as total_berat')
+            ->groupBy('sampah_id')
+            ->orderByDesc('total_berat')
+            ->with('sampah.kategoriSampah')
+            ->first();
+
         $data = [
             'total_nasabah' => Nasabah::query()->count(),
             'total_transaksi' => (clone $query)->count(),
@@ -23,8 +31,12 @@ class LaporanController extends ApiController
             'total_pembayaran_berhasil' => (float) Pembayaran::query()
                 ->when($request->filled('start_date'), fn(Builder $q) => $q->whereDate('tanggal', '>=', $request->string('start_date')))
                 ->when($request->filled('end_date'), fn(Builder $q) => $q->whereDate('tanggal', '<=', $request->string('end_date')))
+                ->when($request->filled('nasabah_id'), fn(Builder $q) => $q->where('nasabah_id', $request->integer('nasabah_id')))
                 ->where('status', 'berhasil')
                 ->sum('jumlah'),
+            'top_sampah' => $topSampah?->sampah?->nama_sampah ?? '-',
+            'top_kategori' => $topSampah?->sampah?->kategoriSampah?->nama_kategori ?? '-',
+            'top_berat' => (float) ($topSampah?->total_berat ?? 0),
         ];
 
         return $this->successResponse('Ringkasan laporan berhasil diambil', $data);
@@ -32,8 +44,13 @@ class LaporanController extends ApiController
 
     public function chart(Request $request): JsonResponse
     {
+        $format = "%Y-%m";
+        if ($request->filled('start_date') || $request->filled('end_date')) {
+            $format = "%Y-%m-%d";
+        }
+
         $rows = $this->filteredTransaksiQuery($request)
-            ->selectRaw("DATE_FORMAT(tanggal, '%Y-%m') as period")
+            ->selectRaw("DATE_FORMAT(tanggal, '$format') as period")
             ->selectRaw('COUNT(*) as total_transaksi')
             ->selectRaw('SUM(total_harga) as total_harga')
             ->groupBy('period')
@@ -46,12 +63,12 @@ class LaporanController extends ApiController
                 [
                     'label' => 'Jumlah Transaksi',
                     'key' => 'total_transaksi',
-                    'data' => $rows->pluck('total_transaksi')->map(fn($value) => (int) $value)->all(),
+                    'data' => $rows->pluck('total_transaksi')->map(fn($v) => (int) ($v ?? 0))->all(),
                 ],
                 [
                     'label' => 'Total Harga',
                     'key' => 'total_harga',
-                    'data' => $rows->pluck('total_harga')->map(fn($value) => (float) $value)->all(),
+                    'data' => $rows->pluck('total_harga')->map(fn($v) => (float) ($v ?? 0))->all(),
                 ],
             ],
         ];

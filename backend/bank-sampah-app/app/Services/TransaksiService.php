@@ -19,6 +19,11 @@ class TransaksiService
         return $this->transaksiRepository->allWithRelations();
     }
 
+    public function allByNasabah(int $nasabahId): Collection
+    {
+        return $this->transaksiRepository->allByNasabahWithRelations($nasabahId);
+    }
+
     public function findOrFail(int $id): Transaksi
     {
         return $this->transaksiRepository->findWithRelationsOrFail($id);

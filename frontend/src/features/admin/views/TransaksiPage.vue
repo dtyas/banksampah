@@ -29,6 +29,7 @@ const nasabahOptions = ref<Nasabah[]>([]);
 const sampahOptions = ref<SampahOption[]>([]);
 const authStore = useAuthStore();
 const canCreate = computed(() => canDoOperation(authStore.user, "create"));
+const isNasabah = computed(() => authStore.user?.role === "nasabah");
 const showForm = ref(false);
 const saving = ref(false);
 const searchTerm = ref("");
@@ -136,13 +137,26 @@ const { currentPage, totalPages, pagedRows, setPage } =
   usePagination(filteredRows);
 
 async function loadTransaksi() {
-  const response = await api.get("/transaksi");
+  let url = "/transaksi";
+  if (isNasabah.value) {
+    url = "/nasabah/me/transaksi";
+  }
+  const response = await api.get(url);
   rows.value = response.data?.data?.data ?? response.data?.data ?? [];
 }
 
 async function loadNasabah() {
   const response = await api.get("/nasabah");
-  nasabahOptions.value = response.data?.data?.data ?? response.data?.data ?? [];
+  const allNasabah = response.data?.data?.data ?? response.data?.data ?? [];
+
+  if (isNasabah.value && authStore.user) {
+    const currentId = String(authStore.user.nasabah_id || authStore.user.id);
+    nasabahOptions.value = (allNasabah as Nasabah[]).filter(
+      (n) => String(n.id) === currentId || String((n as any).user_id) === String(authStore.user?.id)
+    );
+  } else {
+    nasabahOptions.value = allNasabah;
+  }
 }
 
 async function loadSampah() {
@@ -180,6 +194,9 @@ function resetFilters() {
 
 onMounted(async () => {
   await Promise.all([loadTransaksi(), loadNasabah(), loadSampah()]);
+  if (isNasabah.value && authStore.user?.nasabah_id) {
+    form.value.nasabah_id = String(authStore.user.nasabah_id);
+  }
 });
 
 watch([searchTerm, filterStart, filterEnd], () => {
@@ -423,7 +440,8 @@ async function submitForm() {
             </label>
             <select
               v-model="form.nasabah_id"
-              class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+              class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400 disabled:bg-slate-50 disabled:text-slate-500"
+              :disabled="isNasabah"
               required
             >
               <option value="" disabled>Pilih nasabah</option>

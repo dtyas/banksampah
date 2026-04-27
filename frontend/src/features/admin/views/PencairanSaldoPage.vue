@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
@@ -9,6 +9,7 @@ import { isFeatureEnabled } from "../../../config/features";
 type PencairanRow = {
   id: number;
   transaksi_id: number;
+  nasabah_id?: number | null;
   jumlah: number;
   metode: string;
   status: string;
@@ -19,6 +20,17 @@ type PencairanRow = {
     nama: string;
     email: string;
   } | null;
+  nasabah?: { id?: number; nama?: string } | null;
+  transaksi?: {
+    id?: number;
+    nasabah_id?: number;
+    nasabah?: { id?: number; nama?: string } | null;
+  } | null;
+};
+
+type Nasabah = {
+  id: number;
+  nama: string;
 };
 
 const rows = ref<PencairanRow[]>([]);
@@ -59,9 +71,17 @@ const showForm = ref(false);
 const showAccountForm = ref(false);
 const saving = ref(false);
 const transaksiOptions = ref<
-  Array<{ id: number; nasabah?: { nama?: string } }>
+  Array<{ id: number; nasabah_id?: number; nasabah?: { nama?: string } }>
 >([]);
+
+// State untuk nasabah (admin view)
+const nasabahOptions = ref<Nasabah[]>([]);
+const nasabahSaldo = ref<number | null>(null);
+const nasabahSaldoLoading = ref(false);
+const nasabahSaldoError = ref("");
+
 const form = ref({
+  nasabah_id: "",
   transaksi_id: "",
   jumlah: "",
   metode: "Pencairan Saldo",
@@ -206,8 +226,38 @@ async function loadTransaksiNasabah() {
   const data = response.data?.data ?? [];
   transaksiOptions.value = (data as Array<{ id: number }>).map((item) => ({
     id: item.id,
+    nasabah_id: undefined,
     nasabah: { nama: authStore.user?.nama || "Nasabah" },
   }));
+
+  // Auto-select the latest transaction for nasabah
+  if (transaksiOptions.value.length > 0) {
+    const latest = transaksiOptions.value.reduce((prev, cur) => (cur.id > prev.id ? cur : prev));
+    form.value.transaksi_id = String(latest.id);
+  }
+}
+
+async function loadNasabah() {
+  if (isNasabah.value) return;
+  const response = await api.get("/nasabah");
+  nasabahOptions.value = response.data?.data?.data ?? response.data?.data ?? [];
+}
+
+async function fetchNasabahSaldo() {
+  nasabahSaldo.value = null;
+  nasabahSaldoError.value = "";
+  const id = form.value.nasabah_id;
+  if (!id) return;
+  nasabahSaldoLoading.value = true;
+  try {
+    const res = await api.get(`/nasabah/${id}/saldo`);
+    nasabahSaldo.value = res.data?.data?.saldo ?? null;
+  } catch {
+    nasabahSaldo.value = null;
+    nasabahSaldoError.value = "Gagal mengambil saldo nasabah";
+  } finally {
+    nasabahSaldoLoading.value = false;
+  }
 }
 
 async function loadTransaksi() {
@@ -217,6 +267,45 @@ async function loadTransaksi() {
   const response = await api.get("/transaksi");
   transaksiOptions.value =
     response.data?.data?.data ?? response.data?.data ?? [];
+}
+
+// Transaksi difilter berdasarkan nasabah yang dipilih (admin view)
+const filteredTransaksiOptions = computed(() => {
+  if (isNasabah.value || !form.value.nasabah_id) return transaksiOptions.value;
+  return transaksiOptions.value.filter(
+    (t) => String((t as any).nasabah_id) === String(form.value.nasabah_id),
+  );
+});
+
+// State transaksi terbaru nasabah untuk admin (auto-picked)
+const latestTransaksi = ref<{ id: number; nasabah?: { nama?: string }; total_harga?: number } | null>(null);
+const latestTransaksiLoading = ref(false);
+const latestTransaksiError = ref("");
+
+async function fetchLatestTransaksiNasabah(nasabahId: string) {
+  latestTransaksi.value = null;
+  latestTransaksiError.value = "";
+  form.value.transaksi_id = "";
+  if (!nasabahId) return;
+  latestTransaksiLoading.value = true;
+  try {
+    const res = await api.get(`/transaksi?nasabah_id=${nasabahId}`);
+    const list: Array<{ id: number; nasabah?: { nama?: string }; total_harga?: number }> =
+      res.data?.data?.data ?? res.data?.data ?? [];
+    if (list.length > 0) {
+      const latest = list.reduce((prev, cur) =>
+        cur.id > prev.id ? cur : prev,
+      );
+      latestTransaksi.value = latest;
+      form.value.transaksi_id = String(latest.id);
+    } else {
+      latestTransaksiError.value = "Nasabah belum memiliki transaksi";
+    }
+  } catch {
+    latestTransaksiError.value = "Gagal mengambil transaksi nasabah";
+  } finally {
+    latestTransaksiLoading.value = false;
+  }
 }
 
 async function submitForm() {
@@ -243,12 +332,14 @@ async function submitForm() {
       });
     }
     form.value = {
+      nasabah_id: "",
       transaksi_id: "",
       jumlah: "",
       metode: "Pencairan Saldo",
       status: "diverifikasi",
       tanggal: new Date().toISOString().slice(0, 10),
     };
+    nasabahSaldo.value = null;
     showForm.value = false;
     if (isNasabah.value) {
       await loadLedger();
@@ -332,7 +423,7 @@ onMounted(async () => {
     showForm.value = true;
     await Promise.all([loadLedger(), loadTransaksiNasabah()]);
   } else {
-    await Promise.all([loadData(), loadTransaksi()]);
+    await Promise.all([loadData(), loadNasabah()]);
   }
 
   // Polling keeps disbursement status in sync with async webhook updates.
@@ -340,6 +431,25 @@ onMounted(async () => {
     refreshTimer = window.setInterval(loadData, 12000);
   }
 });
+
+watch(
+  () => form.value.nasabah_id,
+  async (val) => {
+    if (isNasabah.value) return;
+    form.value.transaksi_id = "";
+    latestTransaksi.value = null;
+    latestTransaksiError.value = "";
+    if (val) {
+      await Promise.all([
+        fetchNasabahSaldo(),
+        fetchLatestTransaksiNasabah(val),
+      ]);
+    } else {
+      nasabahSaldo.value = null;
+      nasabahSaldoError.value = "";
+    }
+  },
+);
 
 onUnmounted(() => {
   if (refreshTimer !== null) {
@@ -397,25 +507,6 @@ onUnmounted(() => {
             </p>
           </div>
           <form class="space-y-5 px-6 py-5" @submit.prevent="submitForm">
-            <div>
-              <label class="mb-2 block text-sm font-medium text-slate-700">
-                Transaksi
-              </label>
-              <select
-                v-model="form.transaksi_id"
-                class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                required
-              >
-                <option value="" disabled>Pilih transaksi</option>
-                <option
-                  v-for="item in transaksiOptions"
-                  :key="item.id"
-                  :value="item.id"
-                >
-                  #{{ item.id }} - {{ item.nasabah?.nama || "Nasabah" }}
-                </option>
-              </select>
-            </div>
             <div>
               <label class="mb-2 block text-sm font-medium text-slate-700">
                 Nominal Pencairan
@@ -836,25 +927,42 @@ onUnmounted(() => {
         class="rounded-[24px] border border-emerald-100 bg-emerald-50/40 p-5"
       >
         <form class="grid gap-4 lg:grid-cols-2" @submit.prevent="submitForm">
-          <div>
+          <!-- Pilih Nasabah (admin) -->
+          <div class="lg:col-span-2">
             <label class="mb-2 block text-sm font-medium text-slate-700">
-              Transaksi
+              Nasabah
             </label>
             <select
-              v-model="form.transaksi_id"
+              v-model="form.nasabah_id"
               class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
               required
             >
-              <option value="" disabled>Pilih transaksi</option>
+              <option value="" disabled>Pilih nasabah</option>
               <option
-                v-for="item in transaksiOptions"
-                :key="item.id"
-                :value="item.id"
+                v-for="n in nasabahOptions"
+                :key="n.id"
+                :value="n.id"
               >
-                #{{ item.id }} - {{ item.nasabah?.nama || "Nasabah" }}
+                {{ n.nama }}
               </option>
             </select>
+            <!-- Saldo nasabah -->
+            <div v-if="form.nasabah_id" class="mt-2 text-xs">
+              <span v-if="nasabahSaldoLoading">Mengambil saldo...</span>
+              <span v-else-if="nasabahSaldoError" class="text-rose-600">{{ nasabahSaldoError }}</span>
+              <span
+                v-else-if="nasabahSaldo !== null"
+                class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 font-semibold text-emerald-700"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Saldo: <b>Rp {{ Number(nasabahSaldo).toLocaleString("id-ID") }}</b>
+              </span>
+            </div>
           </div>
+
+
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700">
               Jumlah

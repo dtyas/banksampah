@@ -17,6 +17,15 @@ class TransaksiRepository implements TransaksiRepositoryInterface
             ->get();
     }
 
+    public function allByNasabahWithRelations(int $nasabahId): Collection
+    {
+        return Transaksi::query()
+            ->with(['user', 'nasabah', 'detailTransaksi.sampah', 'pembayaran'])
+            ->where('nasabah_id', $nasabahId)
+            ->latest()
+            ->get();
+    }
+
     public function findWithRelationsOrFail(int $id): Transaksi
     {
         return Transaksi::query()

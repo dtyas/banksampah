@@ -7,14 +7,23 @@ use App\Http\Requests\Api\V1\TransaksiUpdateRequest;
 use App\Http\Resources\V1\TransaksiResource;
 use App\Services\TransaksiService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TransaksiController extends ApiController
 {
     public function __construct(private readonly TransaksiService $transaksiService) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $data = TransaksiResource::collection($this->transaksiService->all());
+        $nasabahId = $request->query('nasabah_id');
+
+        if ($nasabahId) {
+            $data = TransaksiResource::collection(
+                $this->transaksiService->allByNasabah((int) $nasabahId)
+            );
+        } else {
+            $data = TransaksiResource::collection($this->transaksiService->all());
+        }
 
         return $this->successResponse('Data transaksi berhasil diambil', $data);
     }

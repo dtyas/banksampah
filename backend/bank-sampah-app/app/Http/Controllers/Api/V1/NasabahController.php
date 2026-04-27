@@ -239,9 +239,13 @@ class NasabahController extends ApiController
         }
 
         $transaksi = $nasabah->transaksi()
-            ->latest('tanggal')
-            ->get(['id', 'tanggal', 'total_harga', 'total_berat']);
+            ->with(['detailTransaksi.sampah', 'nasabah', 'user'])
+            ->latest('id')
+            ->get();
 
-        return $this->successResponse('Transaksi nasabah berhasil diambil', $transaksi);
+        return $this->successResponse(
+            'Transaksi nasabah berhasil diambil',
+            \App\Http\Resources\V1\TransaksiResource::collection($transaksi)
+        );
     }
 }

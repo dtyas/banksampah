@@ -13,6 +13,7 @@ class Pembayaran extends Model
 
     protected $fillable = [
         'transaksi_id',
+        'nasabah_id',
         'jumlah',
         'metode',
         'status',
@@ -31,6 +32,11 @@ class Pembayaran extends Model
     public function transaksi()
     {
         return $this->belongsTo(Transaksi::class);
+    }
+
+    public function nasabah()
+    {
+        return $this->belongsTo(Nasabah::class);
     }
 
     public function verifier()

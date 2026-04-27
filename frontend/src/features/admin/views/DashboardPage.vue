@@ -18,6 +18,9 @@ type Summary = {
   total_berat: number;
   total_harga: number;
   total_pembayaran_berhasil: number;
+  top_sampah: string;
+  top_kategori: string;
+  top_berat: number;
 };
 
 type ChartData = {
@@ -490,11 +493,13 @@ onBeforeUnmount(() => {
           <article class="rounded-2xl bg-sky-50 p-4">
             <p class="text-xs font-semibold text-sky-600">Setoran Tertinggi</p>
             <h4 class="mt-2 text-lg font-semibold text-slate-900">
-              Plastik PET
+              {{ summary?.top_sampah ?? "-" }}
+              <span v-if="summary?.top_kategori" class="text-xs font-normal text-slate-400">
+                ({{ summary.top_kategori }})
+              </span>
             </h4>
             <p class="mt-1 text-xs text-slate-500">
-              {{ formatWeight(summary?.total_berat ?? null) }} terkumpul bulan
-              ini.
+              {{ formatWeight(summary?.top_berat ?? null) }} terkumpul dalam periode ini.
             </p>
           </article>
           <article class="rounded-2xl bg-emerald-50 p-4">

@@ -34,6 +34,14 @@ class PembayaranService
             $actorUserIdFromPayload = $data['actor_user_id'] ?? null;
             unset($data['actor_user_id']);
 
+            // Auto-fill nasabah_id dari transaksi jika belum ada
+            if (empty($data['nasabah_id']) && ! empty($data['transaksi_id'])) {
+                $transaksi = Transaksi::find((int) $data['transaksi_id']);
+                if ($transaksi && $transaksi->nasabah_id) {
+                    $data['nasabah_id'] = $transaksi->nasabah_id;
+                }
+            }
+
             $pembayaran = $this->pembayaranRepository->create($data)->load('transaksi');
 
             $actorUserId = $actorUserIdFromPayload !== null
@@ -60,6 +68,7 @@ class PembayaranService
             return $pembayaran;
         });
     }
+
 
     public function update(int $id, array $data): Pembayaran
     {

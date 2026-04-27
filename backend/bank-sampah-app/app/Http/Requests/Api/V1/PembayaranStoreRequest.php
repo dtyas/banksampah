@@ -14,6 +14,7 @@ class PembayaranStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'nasabah_id' => 'nullable|exists:nasabah,id',
             'transaksi_id' => 'required|exists:transaksi,id',
             'jumlah' => 'required|numeric|min:0',
             'metode' => 'required|string|max:255',
