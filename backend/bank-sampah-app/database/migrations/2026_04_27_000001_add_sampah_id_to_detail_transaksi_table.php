@@ -8,8 +8,10 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('detail_transaksi', function (Blueprint $table) {
-            $table->unsignedBigInteger('sampah_id')->after('id');
-            $table->foreign('sampah_id')->references('id')->on('sampah')->onDelete('cascade');
+            if (!Schema::hasColumn('detail_transaksi', 'sampah_id')) {
+                $table->unsignedBigInteger('sampah_id')->after('id');
+                $table->foreign('sampah_id')->references('id')->on('sampah')->onDelete('cascade');
+            }
         });
     }
 
