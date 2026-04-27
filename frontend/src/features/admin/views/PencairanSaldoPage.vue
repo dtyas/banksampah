@@ -917,7 +917,7 @@ onUnmounted(() => {
               class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
               :disabled="saving"
             >
-              {{ saving ? "Menyimpan..." : "Simpan Pencairan" }}
+              {{ saving ? "Mengajukan..." : "Ajukan Pencairan" }}
             </button>
           </div>
         </form>

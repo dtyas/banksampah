@@ -6,6 +6,7 @@ import { useAuthStore } from "../../../stores/auth";
 const router = useRouter();
 const authStore = useAuthStore();
 const errorMessage = ref("");
+import EyeToggle from "../../../components/ui/EyeToggle.vue";
 const showPassword = ref(false);
 
 const form = reactive({
@@ -212,53 +213,12 @@ function togglePassword(): void {
                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 outline-none transition focus:border-emerald-400 focus:bg-white"
                     required
                   />
-                  <button
-                    type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-emerald-600"
-                    :aria-label="
-                      showPassword
-                        ? 'Sembunyikan password'
-                        : 'Tampilkan password'
-                    "
-                    @click="togglePassword"
-                  >
-                    <svg
-                      v-if="showPassword"
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
-                      />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <svg
-                      v-else
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M3 3l18 18" />
-                      <path d="M10.1 10.2a2.8 2.8 0 013.7 3.7" />
-                      <path
-                        d="M7.6 7.7C4.5 9.2 2 12 2 12s3.5 7 10 7c2.3 0 4.2-.6 5.7-1.5"
-                      />
-                      <path
-                        d="M14.5 6.2A9.6 9.6 0 0112 5c-6.5 0-10 7-10 7a17.7 17.7 0 004.1 4.9"
-                      />
-                    </svg>
-                  </button>
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <EyeToggle
+                      :show="showPassword"
+                      @toggle="showPassword = !showPassword"
+                    />
+                  </div>
                 </div>
                 <div class="mt-2 flex justify-end">
                   <router-link

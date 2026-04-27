@@ -133,6 +133,9 @@ class NasabahController extends ApiController
         return $this->successResponse('Data nasabah berhasil dihapus');
     }
 
+    /**
+     * Ledger hanya untuk nasabah login (me)
+     */
     public function ledger(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -148,11 +151,7 @@ class NasabahController extends ApiController
         // 1. Ambil saldo dari logika perhitungan lama (Legacy)
         $saldoLegacy = $this->pembayaranService->calculateSaldoNasabah($nasabah->id);
 
-        /**
-         * 2. SINKRONISASI KE WALLET
-         * Kita simpan/update hasil hitungan lama ke dalam tabel wallets.
-         * Ini memastikan tabel wallets selalu sinkron dengan kenyataan transaksi saat ini.
-         */
+        // 2. Sinkronisasi ke wallet
         $wallet = \App\Models\Wallet::updateOrCreate(
             ['nasabah_id' => $nasabah->id],
             [
@@ -161,7 +160,7 @@ class NasabahController extends ApiController
             ]
         );
 
-        // 3. Ambil riwayat transaksi & pembayaran (Logika tetap sama)
+        // 3. Ambil riwayat transaksi & pembayaran
         $transaksi = $nasabah->transaksi()
             ->latest('tanggal')
             ->limit(10)
@@ -175,9 +174,32 @@ class NasabahController extends ApiController
 
         return $this->successResponse('Ledger nasabah berhasil diambil', [
             'nasabah' => new NasabahResource($nasabah->loadMissing('user')),
-            'saldo' => $wallet->saldo, // Sekarang mengambil angka dari tabel Wallets
+            'saldo' => $wallet->saldo,
             'transaksi_terakhir' => $transaksi,
             'pencairan_terakhir' => $pembayaran,
+        ]);
+    }
+
+    /**
+     * Ambil saldo nasabah (khusus admin)
+     */
+    public function getSaldoNasabah(Request $request, $id): JsonResponse
+    {
+        $nasabah = Nasabah::find($id);
+        if (!$nasabah) {
+            return $this->errorResponse('Profil nasabah tidak ditemukan', null, 404);
+        }
+        $saldoLegacy = $this->pembayaranService->calculateSaldoNasabah($nasabah->id);
+        $wallet = \App\Models\Wallet::updateOrCreate(
+            ['nasabah_id' => $nasabah->id],
+            [
+                'saldo' => $saldoLegacy['saldo_tersedia'] ?? 0,
+                'meta' => json_encode($saldoLegacy)
+            ]
+        );
+        return $this->successResponse('Saldo nasabah berhasil diambil', [
+            'nasabah_id' => $nasabah->id,
+            'saldo' => $wallet->saldo,
         ]);
     }
 

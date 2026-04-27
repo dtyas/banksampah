@@ -39,12 +39,16 @@ class TransaksiRepository implements TransaksiRepositoryInterface
         ]);
 
         foreach ($items as $item) {
-            DetailTransaksi::query()->create([
+            // Support legacy data: allow missing sampah_id
+            $detailData = [
                 'transaksi_id' => $transaksi->id,
-                'sampah_id' => $item['sampah_id'],
                 'berat' => $item['berat'],
                 'subtotal' => $item['subtotal'],
-            ]);
+            ];
+            if (isset($item['sampah_id']) && $item['sampah_id']) {
+                $detailData['sampah_id'] = $item['sampah_id'];
+            }
+            DetailTransaksi::query()->create($detailData);
         }
 
         return $this->findWithRelationsOrFail((int) $transaksi->id);
@@ -67,12 +71,16 @@ class TransaksiRepository implements TransaksiRepositoryInterface
         $transaksi->detailTransaksi()->delete();
 
         foreach ($items as $item) {
-            DetailTransaksi::query()->create([
+            // Support legacy data: allow missing sampah_id
+            $detailData = [
                 'transaksi_id' => $transaksi->id,
-                'sampah_id' => $item['sampah_id'],
                 'berat' => $item['berat'],
                 'subtotal' => $item['subtotal'],
-            ]);
+            ];
+            if (isset($item['sampah_id']) && $item['sampah_id']) {
+                $detailData['sampah_id'] = $item['sampah_id'];
+            }
+            DetailTransaksi::query()->create($detailData);
         }
 
         return $this->findWithRelationsOrFail((int) $transaksi->id);

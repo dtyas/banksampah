@@ -34,6 +34,7 @@ const saving = ref(false);
 const searchTerm = ref("");
 const filterStart = ref("");
 const filterEnd = ref("");
+
 const form = ref({
   nasabah_id: "",
   tanggal: new Date().toISOString().slice(0, 10),
@@ -45,6 +46,36 @@ const form = ref({
     },
   ],
 });
+
+const nasabahSaldo = ref<number | null>(null);
+const nasabahSaldoLoading = ref(false);
+const nasabahSaldoError = ref("");
+
+async function fetchNasabahSaldo() {
+  nasabahSaldo.value = null;
+  nasabahSaldoError.value = "";
+  const id = form.value.nasabah_id;
+  if (!id) return;
+  nasabahSaldoLoading.value = true;
+  try {
+    let url = `/nasabah/${id}/saldo`;
+    // Jika user login adalah nasabah dan memilih dirinya sendiri, pakai /me/ledger
+    if (
+      authStore.user &&
+      authStore.user.role === "nasabah" &&
+      String(authStore.user.nasabah_id || authStore.user.id) === String(id)
+    ) {
+      url = "/nasabah/me/ledger";
+    }
+    const res = await api.get(url);
+    nasabahSaldo.value = res.data?.data?.saldo ?? null;
+  } catch (e) {
+    nasabahSaldo.value = null;
+    nasabahSaldoError.value = "Gagal mengambil saldo nasabah";
+  } finally {
+    nasabahSaldoLoading.value = false;
+  }
+}
 
 const totals = computed(() => {
   return form.value.items.reduce(
@@ -154,6 +185,18 @@ onMounted(async () => {
 watch([searchTerm, filterStart, filterEnd], () => {
   setPage(1);
 });
+
+watch(
+  () => form.value.nasabah_id,
+  async (val) => {
+    if (val) {
+      await fetchNasabahSaldo();
+    } else {
+      nasabahSaldo.value = null;
+      nasabahSaldoError.value = "";
+    }
+  },
+);
 
 async function submitForm() {
   const userId = authStore.user?.id;
@@ -268,6 +311,7 @@ async function submitForm() {
             <th class="px-5 py-4">Tanggal</th>
             <th class="px-5 py-4">Total Berat</th>
             <th class="px-5 py-4">Total Harga</th>
+            <th class="px-5 py-4">Detail Sampah</th>
           </tr>
         </thead>
         <tbody>
@@ -276,19 +320,56 @@ async function submitForm() {
             :key="item.id"
             class="border-t border-slate-200"
           >
-            <td class="px-5 py-4">{{ (currentPage - 1) * 10 + index + 1 }}</td>
-            <td class="px-5 py-4">{{ item.nasabah?.nama || "-" }}</td>
-            <td class="px-5 py-4">{{ item.tanggal }}</td>
-            <td class="px-5 py-4">{{ item.total_berat }} Kg</td>
-            <td class="px-5 py-4">
+            <td class="px-5 py-4 align-top">
+              {{ (currentPage - 1) * 10 + index + 1 }}
+            </td>
+            <td class="px-5 py-4 align-top">{{ item.nasabah?.nama || "-" }}</td>
+            <td class="px-5 py-4 align-top">{{ item.tanggal }}</td>
+            <td class="px-5 py-4 align-top">{{ item.total_berat }} Kg</td>
+            <td class="px-5 py-4 align-top">
               Rp {{ Number(item.total_harga || 0).toLocaleString("id-ID") }}
+            </td>
+            <td class="px-5 py-4">
+              <div v-if="item.detail_transaksi && item.detail_transaksi.length">
+                <table class="min-w-full border text-xs">
+                  <thead>
+                    <tr class="bg-slate-50">
+                      <th class="px-2 py-1 border">Sampah</th>
+                      <th class="px-2 py-1 border">Berat (Kg)</th>
+                      <th class="px-2 py-1 border">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="detail in item.detail_transaksi"
+                      :key="detail.id"
+                    >
+                      <td class="px-2 py-1 border">
+                        {{ detail.sampah?.nama_sampah || "-" }}
+                      </td>
+                      <td class="px-2 py-1 border">
+                        {{ detail.berat }}
+                      </td>
+                      <td class="px-2 py-1 border">
+                        Rp
+                        {{
+                          Number(detail.subtotal || 0).toLocaleString("id-ID")
+                        }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else class="italic text-slate-400">
+                Tidak ada detail sampah
+              </div>
             </td>
           </tr>
           <tr
             v-if="filteredRows.length === 0"
             class="border-t border-slate-200"
           >
-            <td colspan="4" class="px-5 py-4">
+            <td colspan="6" class="px-5 py-4">
               <div
                 class="alert alert-info rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-sm text-sky-700"
                 role="alert"
@@ -354,6 +435,33 @@ async function submitForm() {
                 {{ item.nama }}
               </option>
             </select>
+            <div v-if="form.nasabah_id" class="mt-2 text-xs">
+              <span v-if="nasabahSaldoLoading">Mengambil saldo...</span>
+              <span v-else-if="nasabahSaldoError" class="text-rose-600">{{
+                nasabahSaldoError
+              }}</span>
+              <span
+                v-else-if="nasabahSaldo !== null"
+                class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-700 border border-emerald-200"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 text-emerald-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                Saldo:
+                <b>Rp {{ Number(nasabahSaldo).toLocaleString("id-ID") }}</b>
+              </span>
+            </div>
           </div>
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700">

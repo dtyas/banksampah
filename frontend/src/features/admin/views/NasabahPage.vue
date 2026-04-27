@@ -49,10 +49,13 @@ const form = reactive({
 
 const isEditMode = computed(() => editingId.value !== null);
 const isPayoutCash = computed(() => form.payout_channel === "CASH");
+const isXenditDisbursementEnabled = computed(() =>
+  isFeatureEnabled("enableXenditDisbursement"),
+);
 
 const channelOptions = computed(() => {
   const base = ["CASH"];
-  if (isFeatureEnabled("enableXenditDisbursement")) {
+  if (isXenditDisbursementEnabled.value) {
     base.push(
       "ID_BCA",
       "ID_BNI",
@@ -403,7 +406,7 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <div v-if="isEditMode">
+        <div v-if="isEditMode && isXenditDisbursementEnabled">
           <label class="mb-2 block text-sm font-medium text-slate-700"
             >Email User Nasabah</label
           >
@@ -431,7 +434,7 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <div v-if="isEditMode">
+        <div v-if="isEditMode && isXenditDisbursementEnabled">
           <label class="mb-2 block text-sm font-medium text-slate-700"
             >Channel Payout</label
           >
@@ -456,7 +459,9 @@ watch(searchTerm, () => {
           </p>
         </div>
 
-        <template v-if="isEditMode && !isPayoutCash">
+        <template
+          v-if="isEditMode && isXenditDisbursementEnabled && !isPayoutCash"
+        >
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700"
               >Nomor Rekening/E-Wallet</label
@@ -492,7 +497,7 @@ watch(searchTerm, () => {
           </div>
         </template>
 
-        <template v-if="isEditMode">
+        <template v-if="isEditMode && isXenditDisbursementEnabled">
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700"
               >Password</label

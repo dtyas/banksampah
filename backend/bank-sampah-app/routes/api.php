@@ -26,8 +26,8 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:menu.transaksi', 'permission:operational.tambah_data']);
         Route::get('xendit/balance', [XenditController::class, 'balance'])
             ->middleware(['permission:menu.dashboard']);
-        Route::get('nasabah/me/ledger', [NasabahController::class, 'ledger'])
-            ->middleware(['permission:menu.pencairan_saldo']);
+        Route::get('nasabah/me/ledger', [NasabahController::class, 'ledger']);
+        Route::get('nasabah/{id}/saldo', [NasabahController::class, 'getSaldoNasabah']); // khusus admin
         Route::get('nasabah/me/transaksi', [NasabahController::class, 'transaksiMe'])
             ->middleware(['permission:menu.pencairan_saldo']);
         Route::put('nasabah/me/payout', [NasabahController::class, 'updatePayoutAccount'])

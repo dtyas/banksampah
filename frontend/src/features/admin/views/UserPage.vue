@@ -66,6 +66,7 @@ const canEditAksesKustom = computed(() => {
   return isSuperAdminLogin.value;
 });
 
+import EyeToggle from "../../../components/ui/EyeToggle.vue";
 const showPassword = ref(false);
 const formErrors = ref<Record<string, string>>({});
 
@@ -387,39 +388,50 @@ onMounted(loadUsers);
             </label>
           </div>
 
-          <div class="p-5 bg-slate-900 rounded-[24px] text-white space-y-4">
+          <div
+            class="p-5 bg-white rounded-[24px] text-slate-900 space-y-4 border border-slate-200"
+          >
             <h4
-              class="text-[10px] font-black uppercase tracking-widest text-slate-400"
+              class="text-[10px] font-black uppercase tracking-widest text-slate-500"
             >
               Keamanan Akun
             </h4>
-            <input
-              v-model="form.password"
-              :type="showPassword ? 'text' : 'password'"
-              class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-500"
-              :placeholder="
-                editingId ? 'Kosongkan jika tidak diganti' : 'Password baru'
-              "
-            />
-            <button
-              type="button"
-              class="text-[10px] font-black text-slate-400 hover:text-slate-300 uppercase tracking-widest"
-              @click="showPassword = !showPassword"
-            >
-              {{ showPassword ? "Sembunyikan" : "Tampilkan" }} Password
-            </button>
+            <div class="relative">
+              <input
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400 text-slate-900"
+                :placeholder="
+                  editingId ? 'Kosongkan jika tidak diganti' : 'Password baru'
+                "
+              />
+              <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                <EyeToggle
+                  :show="showPassword"
+                  @toggle="showPassword = !showPassword"
+                />
+              </div>
+            </div>
             <div
               v-if="formErrors.password"
               class="text-xs text-rose-400 font-bold"
             >
               {{ formErrors.password }}
             </div>
-            <input
-              v-model="form.password_confirmation"
-              :type="showPassword ? 'text' : 'password'"
-              placeholder="Konfirmasi password"
-              class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-500"
-            />
+            <div class="relative">
+              <input
+                v-model="form.password_confirmation"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="Konfirmasi password"
+                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400 text-slate-900"
+              />
+              <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                <EyeToggle
+                  :show="showPassword"
+                  @toggle="showPassword = !showPassword"
+                />
+              </div>
+            </div>
             <div
               v-if="formErrors.password_confirmation"
               class="text-xs text-rose-400 font-bold"

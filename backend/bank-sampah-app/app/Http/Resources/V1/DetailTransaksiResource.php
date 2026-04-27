@@ -16,7 +16,7 @@ class DetailTransaksiResource extends JsonResource
             'sampah_id' => $this->sampah_id,
             'berat' => $this->berat,
             'subtotal' => $this->subtotal,
-            'sampah' => new SampahResource($this->whenLoaded('sampah')),
+            'sampah' => $this->sampah_id ? new SampahResource($this->whenLoaded('sampah')) : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

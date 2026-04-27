@@ -19,9 +19,17 @@ class AuthController extends ApiController
             'device_name' => 'nullable|string|max:255',
         ]);
 
-        $user = \App\Models\User::query()->where('email', $validated['email'])->first();
 
-        if (! $user || ! Hash::check($validated['password'], $user->password)) {
+        $user = \App\Models\User::query()
+            ->where('email', $validated['email'])
+            ->where('status', 'Aktif')
+            ->first();
+
+        if (! $user) {
+            return $this->errorResponse('Akun tidak ditemukan atau tidak aktif', null, 422);
+        }
+
+        if (! Hash::check($validated['password'], $user->password)) {
             return $this->errorResponse('Email atau password tidak valid', null, 422);
         }
 

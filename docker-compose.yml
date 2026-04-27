@@ -7,7 +7,7 @@ services:
       volumes:
         - ./backend/bank-sampah-app:/var/www/html
       depends_on:
-        - mysql
+        - db
 
     nginx:
       image: nginx:1.27-alpine
@@ -59,7 +59,7 @@ services:
       volumes:
         - ./backend/bank-sampah-app:/var/www/html
       depends_on:
-        - mysql
+        - db
         - mailpit
       restart: unless-stopped
 

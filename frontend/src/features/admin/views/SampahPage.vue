@@ -21,9 +21,16 @@ const rows = ref<Sampah[]>([]);
 const kategoriRows = ref<Kategori[]>([]);
 const authStore = useAuthStore();
 const canCreate = computed(() => canDoOperation(authStore.user, "create"));
+const canEditDelete = computed(() => {
+  // Hanya super_admin dan petugas (admin) yang boleh edit/hapus
+  return (
+    authStore.user?.role === "super_admin" || authStore.user?.role === "petugas"
+  );
+});
 const showForm = ref(false);
 const searchTerm = ref("");
 const saving = ref(false);
+const editingId = ref<number | null>(null);
 const form = ref({
   nama_sampah: "",
   harga_per_kg: "",
@@ -77,6 +84,24 @@ function resetFilters() {
   setPage(1);
 }
 
+function startEdit(item: Sampah) {
+  editingId.value = item.id;
+  form.value = {
+    nama_sampah: item.nama_sampah,
+    harga_per_kg: String(item.harga_per_kg),
+    kategori_sampah_id: item.kategori_sampah?.id
+      ? String(item.kategori_sampah.id)
+      : "",
+  };
+  showForm.value = true;
+}
+
+function resetForm() {
+  editingId.value = null;
+  form.value = { nama_sampah: "", harga_per_kg: "", kategori_sampah_id: "" };
+  showForm.value = false;
+}
+
 async function submitForm() {
   if (!form.value.nama_sampah.trim()) {
     return;
@@ -84,13 +109,32 @@ async function submitForm() {
 
   saving.value = true;
   try {
-    await api.post("/sampah", {
-      nama_sampah: form.value.nama_sampah.trim(),
-      harga_per_kg: Number(form.value.harga_per_kg || 0),
-      kategori_sampah_id: Number(form.value.kategori_sampah_id || 0),
-    });
-    form.value = { nama_sampah: "", harga_per_kg: "", kategori_sampah_id: "" };
-    showForm.value = false;
+    if (editingId.value) {
+      await api.put(`/sampah/${editingId.value}`, {
+        nama_sampah: form.value.nama_sampah.trim(),
+        harga_per_kg: Number(form.value.harga_per_kg || 0),
+        kategori_sampah_id: Number(form.value.kategori_sampah_id || 0),
+      });
+    } else {
+      await api.post("/sampah", {
+        nama_sampah: form.value.nama_sampah.trim(),
+        harga_per_kg: Number(form.value.harga_per_kg || 0),
+        kategori_sampah_id: Number(form.value.kategori_sampah_id || 0),
+      });
+    }
+    resetForm();
+    await loadSampah();
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function removeSampah(id: number, nama: string) {
+  const confirmed = window.confirm(`Hapus data sampah "${nama}"?`);
+  if (!confirmed) return;
+  saving.value = true;
+  try {
+    await api.delete(`/sampah/${id}`);
     await loadSampah();
   } finally {
     saving.value = false;
@@ -153,6 +197,7 @@ async function submitForm() {
             <th class="px-5 py-4">Nama</th>
             <th class="px-5 py-4">Kategori</th>
             <th class="px-5 py-4">Harga/Kg</th>
+            <th v-if="canEditDelete" class="px-5 py-4">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -168,6 +213,23 @@ async function submitForm() {
             </td>
             <td class="px-5 py-4">
               Rp {{ Number(item.harga_per_kg || 0).toLocaleString("id-ID") }}
+            </td>
+            <td v-if="canEditDelete" class="px-5 py-4">
+              <div class="flex gap-2">
+                <button
+                  class="rounded-lg bg-amber-400 px-3 py-2 text-xs"
+                  @click="startEdit(item)"
+                >
+                  Edit
+                </button>
+                <button
+                  class="rounded-lg bg-rose-500 px-3 py-2 text-xs text-white"
+                  @click="removeSampah(item.id, item.nama_sampah)"
+                  :disabled="saving"
+                >
+                  Hapus
+                </button>
+              </div>
             </td>
           </tr>
           <tr
@@ -266,13 +328,30 @@ async function submitForm() {
             required
           />
         </div>
-        <div class="flex items-end lg:col-span-3">
+        <div class="flex items-end gap-2 lg:col-span-3">
           <button
             type="submit"
             class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
             :disabled="saving"
           >
-            {{ saving ? "Menyimpan..." : "Simpan" }}
+            {{
+              saving
+                ? editingId
+                  ? "Mengupdate..."
+                  : "Menyimpan..."
+                : editingId
+                  ? "Update"
+                  : "Simpan"
+            }}
+          </button>
+          <button
+            type="button"
+            v-if="editingId !== null"
+            class="rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+            @click="resetForm"
+            :disabled="saving"
+          >
+            Batal
           </button>
         </div>
       </form>
