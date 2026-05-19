@@ -14,6 +14,8 @@ type Pembayaran = {
   status: string;
   tanggal: string;
   verified_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   verifier?: {
     id: number;
     nama: string;
@@ -182,6 +184,9 @@ const hasFilters = computed(
 const { currentPage, totalPages, pagedRows, setPage } =
   usePagination(filteredRows);
 
+const appTimeZone = "Asia/Makassar";
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+
 function statusBadgeClass(status?: string): string {
   const value = (status ?? "").toLowerCase();
   if (value === "berhasil") {
@@ -202,6 +207,13 @@ function formatDate(value?: string | null): string {
     return "-";
   }
 
+  if (dateOnlyPattern.test(value)) {
+    return new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "medium",
+      timeZone: appTimeZone,
+    }).format(new Date(`${value}T00:00:00+08:00`));
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -210,6 +222,7 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: appTimeZone,
   });
 }
 
@@ -446,7 +459,9 @@ async function approvePayment(item: Pembayaran) {
             </td>
             <td class="px-5 py-4">{{ item.verifier?.nama || "-" }}</td>
             <td class="px-5 py-4">{{ formatDate(item.verified_at) }}</td>
-            <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
+            <td class="px-5 py-4">
+              {{ formatDate(item.created_at ?? item.tanggal) }}
+            </td>
             <td class="px-5 py-4">
               <button
                 v-if="item.status === 'menunggu' && canVerifyPayment"

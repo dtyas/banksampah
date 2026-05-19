@@ -15,6 +15,8 @@ type PencairanRow = {
   status: string;
   tanggal: string;
   verified_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   verifier?: {
     id: number;
     nama: string;
@@ -128,6 +130,9 @@ const {
   setPage: setNasabahPage,
 } = usePagination(nasabahRows);
 
+const appTimeZone = "Asia/Makassar";
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+
 function isDisbursementMethod(metode?: string): boolean {
   const value = (metode ?? "").toLowerCase();
   const baseKeywords = ["cash", "pencairan"];
@@ -170,6 +175,13 @@ function formatDate(value?: string | null): string {
     return "-";
   }
 
+  if (dateOnlyPattern.test(value)) {
+    return new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "medium",
+      timeZone: appTimeZone,
+    }).format(new Date(`${value}T00:00:00+08:00`));
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -178,6 +190,7 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: appTimeZone,
   });
 }
 
@@ -486,7 +499,7 @@ onUnmounted(() => {
           <p class="mt-2 text-xs text-amber-600">
             {{
               latestPencairan
-                ? `Pengajuan terakhir ${formatDate(latestPencairan.tanggal)}`
+                ? `Pengajuan terakhir ${formatDate(latestPencairan.created_at ?? latestPencairan.tanggal)}`
                 : "Ajukan pencairan pertama untuk mulai proses."
             }}
           </p>
@@ -712,7 +725,9 @@ onUnmounted(() => {
               <td class="px-5 py-4">
                 {{ (nasabahPage - 1) * 10 + index + 1 }}
               </td>
-              <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
+              <td class="px-5 py-4">
+                {{ formatDate(item.created_at ?? item.tanggal) }}
+              </td>
               <td class="px-5 py-4">
                 Rp {{ Number(item.jumlah || 0).toLocaleString("id-ID") }}
               </td>
@@ -843,7 +858,9 @@ onUnmounted(() => {
               </td>
               <td class="px-5 py-4">{{ item.verifier?.nama || "-" }}</td>
               <td class="px-5 py-4">{{ formatDate(item.verified_at) }}</td>
-              <td class="px-5 py-4">{{ formatDate(item.tanggal) }}</td>
+              <td class="px-5 py-4">
+                {{ formatDate(item.created_at ?? item.tanggal) }}
+              </td>
               <td class="px-5 py-4">
                 <button
                   v-if="item.status === 'menunggu' && canApproveWithdraw"

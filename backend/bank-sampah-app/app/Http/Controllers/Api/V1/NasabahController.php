@@ -168,9 +168,9 @@ class NasabahController extends ApiController
 
         $pembayaran = \App\Models\Pembayaran::query()
             ->whereHas('transaksi', fn($query) => $query->where('nasabah_id', $nasabah->id))
-            ->latest('tanggal')
+            ->latest('created_at')
             ->limit(10)
-            ->get(['id', 'transaksi_id', 'jumlah', 'status', 'metode', 'tanggal']);
+            ->get(['id', 'transaksi_id', 'jumlah', 'status', 'metode', 'tanggal', 'created_at', 'updated_at']);
 
         return $this->successResponse('Ledger nasabah berhasil diambil', [
             'nasabah' => new NasabahResource($nasabah->loadMissing('user')),
