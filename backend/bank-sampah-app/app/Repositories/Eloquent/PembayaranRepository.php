@@ -10,12 +10,19 @@ class PembayaranRepository implements PembayaranRepositoryInterface
 {
     public function allWithTransaksi(): Collection
     {
-        return Pembayaran::query()->with(['transaksi.nasabah', 'nasabah', 'verifier'])->latest()->get();
+        return Pembayaran::query()
+            ->with(['transaksi.nasabah', 'nasabah', 'verifier'])
+            ->whereHas('nasabah.user')
+            ->latest()
+            ->get();
     }
 
     public function findWithTransaksiOrFail(int $id): Pembayaran
     {
-        return Pembayaran::query()->with(['transaksi.nasabah', 'nasabah', 'verifier'])->findOrFail($id);
+        return Pembayaran::query()
+            ->with(['transaksi.nasabah', 'nasabah', 'verifier'])
+            ->whereHas('nasabah.user')
+            ->findOrFail($id);
     }
 
     public function create(array $data): Pembayaran

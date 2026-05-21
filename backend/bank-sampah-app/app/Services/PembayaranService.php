@@ -9,6 +9,7 @@ use App\Repositories\Contracts\PembayaranRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class PembayaranService
 {
@@ -34,13 +35,18 @@ class PembayaranService
             $actorUserIdFromPayload = $data['actor_user_id'] ?? null;
             unset($data['actor_user_id']);
 
-            // Auto-fill nasabah_id dari transaksi jika belum ada
-            if (empty($data['nasabah_id']) && ! empty($data['transaksi_id'])) {
-                $transaksi = Transaksi::find((int) $data['transaksi_id']);
-                if ($transaksi && $transaksi->nasabah_id) {
-                    $data['nasabah_id'] = $transaksi->nasabah_id;
-                }
-            }
+            $transaksi = Transaksi::query()
+                ->with('nasabah')
+                ->whereHas('nasabah.user')
+                ->lockForUpdate()
+                ->findOrFail((int) $data['transaksi_id']);
+
+            $data['nasabah_id'] = (int) $transaksi->nasabah_id;
+            $this->ensureSaldoMencukupi(
+                nasabahId: (int) $transaksi->nasabah_id,
+                jumlah: (float) $data['jumlah'],
+                status: (string) $data['status'],
+            );
 
             $pembayaran = $this->pembayaranRepository->create($data)->load('transaksi');
 
@@ -79,6 +85,20 @@ class PembayaranService
             $pembayaran = $this->findOrFail($id);
             $beforeStatus = $pembayaran->status;
             $beforeJumlah = (float) $pembayaran->jumlah;
+
+            $transaksi = Transaksi::query()
+                ->with('nasabah')
+                ->whereHas('nasabah.user')
+                ->lockForUpdate()
+                ->findOrFail((int) ($data['transaksi_id'] ?? $pembayaran->transaksi_id));
+
+            $data['nasabah_id'] = (int) $transaksi->nasabah_id;
+            $this->ensureSaldoMencukupi(
+                nasabahId: (int) $transaksi->nasabah_id,
+                jumlah: (float) ($data['jumlah'] ?? $pembayaran->jumlah),
+                status: (string) ($data['status'] ?? $pembayaran->status),
+                exceptPembayaranId: (int) $pembayaran->id,
+            );
 
             if (($data['status'] ?? null) === 'diverifikasi') {
                 $data['verified_at'] = now();
@@ -313,6 +333,7 @@ class PembayaranService
     {
         $totalSetoran = (float) Transaksi::query()
             ->where('nasabah_id', $nasabahId)
+            ->whereHas('nasabah.user')
             ->sum('total_harga');
 
         $withdrawQuery = Pembayaran::query()
@@ -339,10 +360,11 @@ class PembayaranService
     /**
      * @return array<string, float>
      */
-    public function calculateSaldoNasabahForUpdate(int $nasabahId): array
+    public function calculateSaldoNasabahForUpdate(int $nasabahId, ?int $exceptPembayaranId = null): array
     {
         $transaksiRows = Transaksi::query()
             ->where('nasabah_id', $nasabahId)
+            ->whereHas('nasabah.user')
             ->lockForUpdate()
             ->get(['id', 'total_harga']);
 
@@ -350,6 +372,7 @@ class PembayaranService
 
         $withdrawRows = Pembayaran::query()
             ->whereHas('transaksi', fn($query) => $query->where('nasabah_id', $nasabahId))
+            ->when($exceptPembayaranId !== null, fn($query) => $query->whereKeyNot($exceptPembayaranId))
             ->lockForUpdate()
             ->get(['jumlah', 'status']);
 
@@ -369,6 +392,29 @@ class PembayaranService
             'total_pencairan_pending' => $totalPending,
             'saldo_tersedia' => $available,
         ];
+    }
+
+    private function ensureSaldoMencukupi(
+        int $nasabahId,
+        float $jumlah,
+        string $status,
+        ?int $exceptPembayaranId = null,
+    ): void {
+        if (! $this->reservesSaldo($status)) {
+            return;
+        }
+
+        $saldo = $this->calculateSaldoNasabahForUpdate($nasabahId, $exceptPembayaranId);
+        if ($jumlah > (float) $saldo['saldo_tersedia']) {
+            throw ValidationException::withMessages([
+                'jumlah' => ['Saldo nasabah tidak mencukupi untuk pengajuan ini.'],
+            ]);
+        }
+    }
+
+    private function reservesSaldo(string $status): bool
+    {
+        return in_array(strtolower($status), ['menunggu', 'diverifikasi', 'diproses', 'berhasil'], true);
     }
 
     public function updateStatusFromPayoutWebhook(string $referenceId, string $payoutStatus, array $payload = []): bool

@@ -20,6 +20,10 @@ class UserController extends ApiController
     public function index(Request $request): JsonResponse
     {
         $users = User::query()
+            ->withCount([
+                'transaksi',
+                'nasabahTransaksi',
+            ])
             ->when($request->filled('role'), fn($query) => $query->where('role', $request->string('role')))
             ->when($request->filled('status'), fn($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('q'), function ($query) use ($request): void {
@@ -148,11 +152,14 @@ class UserController extends ApiController
                 $user->syncRoles([]);
                 $user->syncPermissions([]);
                 $user->update(['status' => 'Inactive']);
+                $user->delete();
+
                 return;
             }
 
             $user->syncRoles([]);
             $user->syncPermissions([]);
+            $user->update(['status' => 'Inactive']);
             $user->delete();
         });
 

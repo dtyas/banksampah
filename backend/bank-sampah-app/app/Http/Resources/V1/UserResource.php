@@ -17,6 +17,8 @@ class UserResource extends JsonResource
             'status' => $this->status,
             'menu_access' => $this->menu_access ?? [],
             'operational_access' => $this->operational_access ?? [],
+            'transaksi_count' => (int) ($this->transaksi_count ?? 0),
+            'nasabah_transaksi_count' => (int) ($this->nasabah_transaksi_count ?? 0),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

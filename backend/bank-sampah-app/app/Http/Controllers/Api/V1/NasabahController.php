@@ -174,7 +174,8 @@ class NasabahController extends ApiController
 
         return $this->successResponse('Ledger nasabah berhasil diambil', [
             'nasabah' => new NasabahResource($nasabah->loadMissing('user')),
-            'saldo' => $wallet->saldo,
+            'saldo' => $saldoLegacy,
+            'saldo_nominal' => $wallet->saldo,
             'transaksi_terakhir' => $transaksi,
             'pencairan_terakhir' => $pembayaran,
         ]);

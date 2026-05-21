@@ -68,11 +68,19 @@ const form = ref({
 const nasabahSaldo = ref<number | null>(null);
 const nasabahSaldoLoading = ref(false);
 const nasabahSaldoError = ref("");
+const submitError = ref("");
 
 // State transaksi terbaru nasabah (auto-picked)
 const latestTransaksi = ref<TransaksiOption | null>(null);
 const latestTransaksiLoading = ref(false);
 const latestTransaksiError = ref("");
+
+const jumlahPengajuan = computed(() => Number(form.value.jumlah || 0));
+const saldoTidakCukup = computed(
+  () =>
+    nasabahSaldo.value !== null &&
+    jumlahPengajuan.value > Number(nasabahSaldo.value),
+);
 
 async function fetchNasabahSaldo() {
   nasabahSaldo.value = null;
@@ -271,7 +279,14 @@ watch(
 );
 
 async function submitForm() {
+  submitError.value = "";
   if (!form.value.transaksi_id) {
+    submitError.value = "Nasabah belum memiliki transaksi aktif.";
+    return;
+  }
+
+  if (saldoTidakCukup.value) {
+    submitError.value = "Saldo nasabah tidak mencukupi untuk jumlah ini.";
     return;
   }
 
@@ -293,8 +308,14 @@ async function submitForm() {
       tanggal: new Date().toISOString().slice(0, 10),
     };
     nasabahSaldo.value = null;
+    submitError.value = "";
     showForm.value = false;
     await loadPembayaran();
+  } catch (error: any) {
+    submitError.value =
+      error.response?.data?.errors?.jumlah?.[0] ||
+      error.response?.data?.message ||
+      "Pembayaran gagal disimpan.";
   } finally {
     saving.value = false;
   }
@@ -605,6 +626,9 @@ async function approvePayment(item: Pembayaran) {
             class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
             required
           />
+          <p v-if="saldoTidakCukup" class="mt-2 text-xs text-rose-600">
+            Jumlah melebihi saldo nasabah.
+          </p>
         </div>
 
         <div>
@@ -652,11 +676,14 @@ async function approvePayment(item: Pembayaran) {
           <button
             type="submit"
             class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-            :disabled="saving"
+            :disabled="saving || saldoTidakCukup || nasabahSaldoLoading"
           >
             {{ saving ? "Menyimpan..." : "Simpan Pembayaran" }}
           </button>
         </div>
+        <p v-if="submitError" class="lg:col-span-2 text-sm text-rose-600">
+          {{ submitError }}
+        </p>
       </form>
     </div>
   </section>

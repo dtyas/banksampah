@@ -17,12 +17,15 @@ return new class extends Migration
             $table->foreign('nasabah_id')->references('id')->on('nasabah')->nullOnDelete();
         });
 
-        // Back-fill nasabah_id dari relasi transaksi → nasabah
+        // Back-fill nasabah_id dari relasi transaksi -> nasabah.
         DB::statement('
-            UPDATE pembayaran p
-            JOIN transaksi t ON t.id = p.transaksi_id
-            SET p.nasabah_id = t.nasabah_id
-            WHERE p.nasabah_id IS NULL
+            UPDATE pembayaran
+            SET nasabah_id = (
+                SELECT transaksi.nasabah_id
+                FROM transaksi
+                WHERE transaksi.id = pembayaran.transaksi_id
+            )
+            WHERE nasabah_id IS NULL
         ');
     }
 

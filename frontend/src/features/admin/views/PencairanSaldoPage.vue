@@ -50,12 +50,14 @@ const ledger = ref<{
     account_number?: string | null;
     account_holder_name?: string | null;
   };
-  saldo?: {
-    total_setoran: number;
-    total_pencairan_berhasil: number;
-    total_pencairan_pending: number;
-    saldo_tersedia: number;
-  };
+  saldo?:
+    | number
+    | {
+        total_setoran: number;
+        total_pencairan_berhasil: number;
+        total_pencairan_pending: number;
+        saldo_tersedia: number;
+      };
   transaksi_terakhir?: Array<{
     id: number;
     tanggal: string;
@@ -119,6 +121,22 @@ const methodOptions = computed(() => {
   return base;
 });
 let refreshTimer: number | null = null;
+
+const jumlahPengajuan = computed(() => Number(form.value.jumlah || 0));
+const saldoTersedia = computed(() => {
+  if (isNasabah.value) {
+    const saldo = ledger.value?.saldo;
+    if (typeof saldo === "number") return saldo;
+    return Number(saldo?.saldo_tersedia || 0);
+  }
+
+  return nasabahSaldo.value;
+});
+const saldoTidakCukup = computed(
+  () =>
+    saldoTersedia.value !== null &&
+    jumlahPengajuan.value > Number(saldoTersedia.value),
+);
 
 const nasabahRows = computed(() => ledger.value?.pencairan_terakhir ?? []);
 const latestPencairan = computed(() => nasabahRows.value[0] ?? null);
@@ -324,6 +342,12 @@ async function fetchLatestTransaksiNasabah(nasabahId: string) {
 async function submitForm() {
   withdrawError.value = "";
   if (!form.value.transaksi_id) {
+    withdrawError.value = "Nasabah belum memiliki transaksi aktif.";
+    return;
+  }
+
+  if (saldoTidakCukup.value) {
+    withdrawError.value = "Saldo nasabah tidak mencukupi untuk pengajuan ini.";
     return;
   }
 
@@ -359,8 +383,11 @@ async function submitForm() {
     } else {
       await loadData();
     }
-  } catch (error) {
-    withdrawError.value = "Pengajuan gagal, cek saldo dan data rekening.";
+  } catch (error: any) {
+    withdrawError.value =
+      error.response?.data?.errors?.jumlah?.[0] ||
+      error.response?.data?.message ||
+      "Pengajuan gagal, cek saldo dan data rekening.";
   } finally {
     saving.value = false;
   }
@@ -482,7 +509,7 @@ onUnmounted(() => {
           <h3 class="mt-4 text-3xl font-bold text-slate-900">
             <span v-if="ledgerLoading">...</span>
             <span v-else
-              >Rp {{ Number(ledger?.saldo || 0).toLocaleString("id-ID") }}</span
+              >Rp {{ Number(saldoTersedia || 0).toLocaleString("id-ID") }}</span
             >
           </h3>
           <p class="mt-2 text-xs text-emerald-600">
@@ -533,6 +560,9 @@ onUnmounted(() => {
                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 required
               />
+              <p v-if="saldoTidakCukup" class="mt-2 text-xs text-rose-600">
+                Jumlah melebihi saldo tersedia.
+              </p>
             </div>
             <div>
               <label class="mb-2 block text-sm font-medium text-slate-700">
@@ -648,7 +678,7 @@ onUnmounted(() => {
               <button
                 type="submit"
                 class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                :disabled="saving"
+                :disabled="saving || saldoTidakCukup || ledgerLoading"
               >
                 {{ saving ? "Menyimpan..." : "Ajukan Pencairan" }}
               </button>
@@ -993,6 +1023,9 @@ onUnmounted(() => {
               class="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
               required
             />
+            <p v-if="saldoTidakCukup" class="mt-2 text-xs text-rose-600">
+              Jumlah melebihi saldo nasabah.
+            </p>
           </div>
           <div>
             <label class="mb-2 block text-sm font-medium text-slate-700">
@@ -1040,7 +1073,7 @@ onUnmounted(() => {
             <button
               type="submit"
               class="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-              :disabled="saving"
+              :disabled="saving || saldoTidakCukup || nasabahSaldoLoading"
             >
               {{ saving ? "Mengajukan..." : "Ajukan Pencairan" }}
             </button>

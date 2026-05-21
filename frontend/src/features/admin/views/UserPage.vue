@@ -14,6 +14,8 @@ type UserRow = {
   status: string;
   menu_access?: string[];
   operational_access?: string[];
+  transaksi_count?: number;
+  nasabah_transaksi_count?: number;
 };
 
 const MENU_OPTIONS = [
@@ -199,9 +201,20 @@ async function save() {
   }
 }
 
-async function removeUser(id: number) {
-  if (confirm("Hapus user ini?")) {
-    await api.delete(`/users/${id}`);
+async function removeUser(user: UserRow) {
+  const directTransaksi = Number(user.transaksi_count || 0);
+  const nasabahTransaksi = Number(user.nasabah_transaksi_count || 0);
+  const totalTransaksi =
+    user.role === "nasabah"
+      ? Math.max(directTransaksi, nasabahTransaksi)
+      : directTransaksi + nasabahTransaksi;
+  const message =
+    totalTransaksi > 0
+      ? `User "${user.nama}" sudah memiliki ${totalTransaksi} transaksi. Hapus user ini? Data transaksi lama tetap disimpan, tetapi user tidak akan tampil di data transaksi aktif.`
+      : `Hapus user "${user.nama}"?`;
+
+  if (confirm(message)) {
+    await api.delete(`/users/${user.id}`);
     await loadUsers();
   }
 }
@@ -308,7 +321,7 @@ onMounted(loadUsers);
                 </button>
                 <button
                   v-if="canDeleteUser && user.id !== currentUser?.id"
-                  @click="removeUser(user.id)"
+                  @click="removeUser(user)"
                   class="px-4 py-1.5 bg-rose-500 text-white font-black text-[10px] uppercase rounded-lg hover:bg-rose-600 cursor-pointer transition"
                 >
                   Hapus

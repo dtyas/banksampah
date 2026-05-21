@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -10,7 +11,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, SoftDeletes;
 
     protected string $guard_name = 'sanctum';
 
@@ -47,5 +48,17 @@ class User extends Authenticatable
     public function transaksi()
     {
         return $this->hasMany(Transaksi::class);
+    }
+
+    public function nasabahTransaksi()
+    {
+        return $this->hasManyThrough(
+            Transaksi::class,
+            Nasabah::class,
+            'user_id',
+            'nasabah_id',
+            'id',
+            'id',
+        );
     }
 }

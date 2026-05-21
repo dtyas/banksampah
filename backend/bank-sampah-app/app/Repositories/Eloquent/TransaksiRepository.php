@@ -13,6 +13,7 @@ class TransaksiRepository implements TransaksiRepositoryInterface
     {
         return Transaksi::query()
             ->with(['user', 'nasabah', 'detailTransaksi.sampah', 'pembayaran'])
+            ->whereHas('nasabah.user')
             ->latest()
             ->get();
     }
@@ -21,6 +22,7 @@ class TransaksiRepository implements TransaksiRepositoryInterface
     {
         return Transaksi::query()
             ->with(['user', 'nasabah', 'detailTransaksi.sampah', 'pembayaran'])
+            ->whereHas('nasabah.user')
             ->where('nasabah_id', $nasabahId)
             ->latest()
             ->get();
@@ -30,6 +32,7 @@ class TransaksiRepository implements TransaksiRepositoryInterface
     {
         return Transaksi::query()
             ->with(['user', 'nasabah', 'detailTransaksi.sampah', 'pembayaran'])
+            ->whereHas('nasabah.user')
             ->findOrFail($id);
     }
 
