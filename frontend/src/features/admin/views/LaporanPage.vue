@@ -641,7 +641,7 @@ watch(chart, async () => {
               <th class="px-4 py-3">Rincian Sampah</th>
               <th class="px-4 py-3">Total Berat</th>
               <th class="px-4 py-3">Total Harga</th>
-              <th class="px-4 py-3">Status Pembayaran</th>
+              <!-- <th class="px-4 py-3">Status Pembayaran</th> -->
             </tr>
           </thead>
           <tbody>
@@ -662,14 +662,14 @@ watch(chart, async () => {
               </td>
               <td class="px-4 py-3 whitespace-nowrap">{{ Number(item.total_berat || 0) }} Kg</td>
               <td class="px-4 py-3 whitespace-nowrap">{{ toCurrency(item.total_harga) }}</td>
-              <td class="px-4 py-3">
+              <!-- <td class="px-4 py-3">
                 <span
                   class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
                   :class="statusBadgeClass(item.pembayaran?.status)"
                 >
                   {{ item.pembayaran?.status || "Berhasil" }}
                 </span>
-              </td>
+              </td> -->
             </tr>
             <tr
               v-if="transaksiRows.length === 0"
