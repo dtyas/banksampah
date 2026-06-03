@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch, nextTick } from "vue"
 import Chart from "chart.js/auto";
 import api from "../../../api/http";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 
 type Summary = {
   total_nasabah: number;
@@ -54,6 +55,9 @@ const filterSampah = ref("");
 const nasabahOptions = ref<Array<{ id: number; nama: string }>>([]);
 const sampahOptions = ref<Array<{ id: number; nama_sampah: string }>>([]);
 const showFilter = ref(false);
+const filterSection = ref<HTMLElement | null>(null);
+const { toggleAndScroll: toggleFilterAndScroll } =
+  useScrollToSection(filterSection, showFilter);
 
 // Auto-set default period (last 30 days) as fallback
 function getDefaultPeriod() {
@@ -377,7 +381,7 @@ watch(chart, async () => {
       <button
         type="button"
         class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-        @click="showFilter = !showFilter"
+        @click="toggleFilterAndScroll()"
       >
         {{ showFilter ? "Tutup Filter" : "Filter Laporan" }}
       </button>
@@ -385,6 +389,7 @@ watch(chart, async () => {
 
     <div
       v-if="showFilter"
+      ref="filterSection"
       class="no-print rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
     >
       <div

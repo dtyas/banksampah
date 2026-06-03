@@ -4,6 +4,7 @@ import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 
 type Pembayaran = {
   id: number;
@@ -49,6 +50,8 @@ const canVerifyPayment = computed(() =>
   canDoOperation(authStore.user, "verifyPayment"),
 );
 const showForm = ref(false);
+const formSection = ref<HTMLElement | null>(null);
+const { toggleAndScroll } = useScrollToSection(formSection, showForm);
 const saving = ref(false);
 const processingId = ref<number | null>(null);
 const searchTerm = ref("");
@@ -415,7 +418,7 @@ async function approvePayment(item: Pembayaran) {
             v-if="canCreate"
             type="button"
             class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            @click="showForm = !showForm"
+            @click="toggleAndScroll()"
           >
             {{ showForm ? "Tutup" : "Tambah Pembayaran" }}
           </button>
@@ -561,6 +564,7 @@ async function approvePayment(item: Pembayaran) {
 
     <div
       v-if="showForm"
+      ref="formSection"
       class="rounded-[24px] border border-emerald-100 bg-emerald-50/40 p-5"
     >
       <form class="grid gap-4 lg:grid-cols-2" @submit.prevent="submitForm">

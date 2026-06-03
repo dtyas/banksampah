@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 import { isFeatureEnabled } from "../../../config/features";
 
 type Nasabah = {
@@ -21,6 +22,11 @@ type Nasabah = {
 const rows = ref<Nasabah[]>([]);
 const editingId = ref<number | null>(null);
 const showForm = ref(false);
+const formSection = ref<HTMLElement | null>(null);
+const { openAndScroll, toggleAndScroll } = useScrollToSection(
+  formSection,
+  showForm,
+);
 const searchTerm = ref("");
 const authStore = useAuthStore();
 const canCreateNasabah = computed(() =>
@@ -104,7 +110,7 @@ async function loadNasabah() {
 
 function startEdit(item: Nasabah) {
   editingId.value = item.id;
-  showForm.value = true;
+  void openAndScroll();
   formErrors.value = {};
   form.nama = item.nama ?? "";
   form.alamat = item.alamat ?? "";
@@ -250,7 +256,7 @@ watch(searchTerm, () => {
             v-if="canCreateNasabah || canUpdateNasabah"
             type="button"
             class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            @click="showForm = !showForm"
+            @click="toggleAndScroll()"
           >
             {{ showForm ? "Tutup Form" : "Tambah Nasabah" }}
           </button>
@@ -383,6 +389,7 @@ watch(searchTerm, () => {
 
     <div
       v-if="showForm"
+      ref="formSection"
       class="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200"
     >
       <h3 class="text-lg font-semibold text-slate-900">

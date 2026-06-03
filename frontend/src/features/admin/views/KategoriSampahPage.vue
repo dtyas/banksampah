@@ -4,6 +4,7 @@ import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 
 const rows = ref<Array<{ id: number; nama_kategori: string }>>([]);
 const authStore = useAuthStore();
@@ -12,6 +13,11 @@ const canUpdate = computed(() => canDoOperation(authStore.user, "update"));
 const canDelete = computed(() => canDoOperation(authStore.user, "delete"));
 const editingId = ref<number | null>(null);
 const showForm = ref(false);
+const formSection = ref<HTMLElement | null>(null);
+const { openAndScroll, toggleAndScroll } = useScrollToSection(
+  formSection,
+  showForm,
+);
 const searchTerm = ref("");
 const saving = ref(false);
 const deletingId = ref<number | null>(null);
@@ -55,7 +61,7 @@ function resetFilters() {
 function startEdit(item: { id: number; nama_kategori: string }) {
   editingId.value = item.id;
   form.value.nama_kategori = item.nama_kategori;
-  showForm.value = true;
+  void openAndScroll();
 }
 
 function resetForm() {
@@ -133,7 +139,7 @@ async function removeKategori(item: { id: number; nama_kategori: string }) {
             v-if="canCreate || canUpdate"
             type="button"
             class="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            @click="showForm = !showForm"
+            @click="toggleAndScroll()"
           >
             {{
               showForm
@@ -256,6 +262,7 @@ async function removeKategori(item: { id: number; nama_kategori: string }) {
 
     <div
       v-if="showForm"
+      ref="formSection"
       class="rounded-[24px] border border-emerald-100 bg-emerald-50/40 p-5"
     >
       <form

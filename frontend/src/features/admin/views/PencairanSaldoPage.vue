@@ -4,6 +4,7 @@ import api from "../../../api/http";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 import { isFeatureEnabled } from "../../../config/features";
 
 type PencairanRow = {
@@ -73,6 +74,11 @@ const accountSaving = ref(false);
 const accountError = ref("");
 const showForm = ref(false);
 const showAccountForm = ref(false);
+const formSection = ref<HTMLElement | null>(null);
+const accountFormSection = ref<HTMLElement | null>(null);
+const { toggleAndScroll } = useScrollToSection(formSection, showForm);
+const { toggleAndScroll: toggleAccountAndScroll } =
+  useScrollToSection(accountFormSection, showAccountForm);
 const saving = ref(false);
 const transaksiOptions = ref<
   Array<{ id: number; nasabah_id?: number; nasabah?: { nama?: string } }>
@@ -611,13 +617,14 @@ onUnmounted(() => {
                 <button
                   type="button"
                   class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700"
-                  @click="showAccountForm = !showAccountForm"
+                  @click="toggleAccountAndScroll()"
                 >
                   {{ showAccountForm ? "Tutup" : "Atur Rekening" }}
                 </button>
               </div>
               <div
                 v-if="showAccountForm"
+                ref="accountFormSection"
                 class="mt-4 grid gap-4 md:grid-cols-3"
               >
                 <div>
@@ -827,7 +834,7 @@ onUnmounted(() => {
           <button
             v-if="canCreate"
             class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
-            @click="showForm = !showForm"
+            @click="toggleAndScroll()"
           >
             {{ showForm ? "Tutup" : "Tambah Pencairan" }}
           </button>
@@ -971,6 +978,7 @@ onUnmounted(() => {
 
       <div
         v-if="showForm"
+        ref="formSection"
         class="rounded-[24px] border border-emerald-100 bg-emerald-50/40 p-5"
       >
         <form class="grid gap-4 lg:grid-cols-2" @submit.prevent="submitForm">

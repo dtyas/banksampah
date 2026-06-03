@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 import { useAuthStore } from "../../../stores/auth";
 import { canDoOperation } from "../../auth/access-control";
 import { usePagination } from "../../../composables/usePagination";
+import { useScrollToSection } from "../../../composables/useScrollToSection";
 
 type UserRow = {
   id: number;
@@ -42,6 +43,11 @@ const OPERATIONAL_OPTIONS = [
 const rows = ref<UserRow[]>([]);
 const editingId = ref<number | null>(null);
 const showForm = ref(false);
+const formSection = ref<HTMLElement | null>(null);
+const { openAndScroll, toggleAndScroll } = useScrollToSection(
+  formSection,
+  showForm,
+);
 const searchTerm = ref("");
 const authStore = useAuthStore();
 
@@ -145,7 +151,7 @@ function startEdit(user: UserRow) {
     ? [...user.operational_access]
     : [];
 
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  void openAndScroll();
 }
 
 function resetForm() {
@@ -242,7 +248,7 @@ onMounted(loadUsers);
         />
         <button
           v-if="isSuperAdminLogin"
-          @click="showForm = !showForm"
+          @click="toggleAndScroll()"
           class="px-6 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 cursor-pointer transition"
         >
           {{ showForm ? "Batal" : "Tambah User" }}
@@ -335,6 +341,7 @@ onMounted(loadUsers);
 
     <div
       v-if="showForm"
+      ref="formSection"
       class="bg-white rounded-[32px] p-8 border border-slate-200 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500"
     >
       <div class="flex items-center justify-between mb-8">
